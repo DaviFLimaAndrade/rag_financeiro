@@ -1,7 +1,7 @@
 from docling.chunking import HybridChunker
-
+from rag_financeiro import config
 def chunk_document(doc, tokenizer_model: str = "sentence-transformers/all-MiniLM-L6-v2"):
-    chunker = HybridChunker(tokenizer=tokenizer_model, max_tokens=512)
+    chunker = HybridChunker(tokenizer=tokenizer_model, max_tokens=config.CHUNK_SIZE)
     chunks = []
     for chunk in chunker.chunk(doc):
         chunks.append({

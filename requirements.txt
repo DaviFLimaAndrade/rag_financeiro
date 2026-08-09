@@ -1,13 +1,9 @@
-langchain-text-splitters
 langchain-huggingface
-langchain-chroma
 langchain-groq
 langchain-google-genai
 langchain-core
-pypdf
 sentence-transformers
 chromadb
 python-dotenv
-fastapi
-uvicorn
 docling
+streamlit

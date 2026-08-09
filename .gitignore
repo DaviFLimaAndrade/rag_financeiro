@@ -88,3 +88,8 @@ htmlcov/
 *.tmp
 *.temp
 *.bak
+
+# claude
+CLAUDE.md
+.claude/
+graphify-out/
