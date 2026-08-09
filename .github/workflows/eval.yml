@@ -1,0 +1,66 @@
+name: RAG Eval
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/rag_financeiro/**"
+      - "scripts/evaluate.py"
+      - "scripts/ingest.py"
+      - "data/golden_dataset_reduzido.jsonl"
+      - "data/raw/**"
+      - "requirements.txt"
+      - "pyproject.toml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rag-eval
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    env:
+      LLM_PROVIDER: groq
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Cache vector store
+        id: chroma-cache
+        uses: actions/cache@v4
+        with:
+          path: data/processed/chroma_db
+          key: chroma-v1-${{ hashFiles('data/raw/**/*.pdf', 'src/rag_financeiro/ingestion/**', 'src/rag_financeiro/embeddings/**', 'src/rag_financeiro/config.py') }}
+
+      - name: Ingest PDFs (cache miss only)
+        if: steps.chroma-cache.outputs.cache-hit != 'true'
+        run: python scripts/ingest.py
+
+      - name: Run evaluation
+        run: python scripts/evaluate.py
+
+      - name: Build eval badge
+        run: python scripts/build_eval_badge.py
+
+      - name: Commit badge back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add eval_badge.json
+          git diff --cached --quiet && echo "Sem mudança no badge, nada a commitar." && exit 0
+          git commit -m "chore: atualiza badge de avaliação do RAG [skip ci]"
+          git push

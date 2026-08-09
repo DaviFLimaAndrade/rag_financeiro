@@ -1,5 +1,7 @@
 # RAG Financeiro — Relatório de Estabilidade Financeira (BCB)
 
+[![RAG Eval](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DaviFLimaAndrade/rag_financeiro/main/eval_badge.json)](.github/workflows/eval.yml)
+
 Sistema de RAG (Retrieval-Augmented Generation) em português para consultar o Relatório de
 Estabilidade Financeira do Banco Central do Brasil (`data/raw/relatorio_estabilidade_bcb.pdf`).
 
@@ -53,3 +55,9 @@ completo e usa um LLM como juiz para comparar a resposta gerada com o `ground_tr
 de 1 a 5, com regras de calibração explícitas (ex.: uma recusa honesta quando a informação existe
 no documento é sempre nota 2 — falha de retrieval — nunca é "perdoada" por ser honesta). O
 resultado é salvo em `eval_results.json` com nota média, taxa de aprovação e acurácia de fonte.
+
+O badge no topo deste README reflete o resultado mais recente. Ele é atualizado automaticamente
+pelo workflow `.github/workflows/eval.yml` (GitHub Actions), que roda a avaliação com Groq a cada
+push no `main` que toque no pipeline do RAG, ou manualmente pela aba Actions ("Run workflow").
+Requer o secret `GROQ_API_KEY` configurado no repositório (Settings → Secrets and variables →
+Actions).

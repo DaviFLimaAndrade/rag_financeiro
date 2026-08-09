@@ -93,3 +93,6 @@ htmlcov/
 CLAUDE.md
 .claude/
 graphify-out/
+
+# eval output (eval_badge.json is committed by CI, eval_results.json is not)
+eval_results.json
