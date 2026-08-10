@@ -69,3 +69,35 @@ pelo workflow `.github/workflows/eval.yml` (GitHub Actions), que roda a avaliaç
 push no `main` que toque no pipeline do RAG, ou manualmente pela aba Actions ("Run workflow").
 Requer o secret `GROQ_API_KEY` configurado no repositório (Settings → Secrets and variables →
 Actions).
+
+## Experimento: chunking naive vs. table-aware
+
+`scripts/compare_chunking.py` isola o chunking como única variável e compara duas estratégias
+usando `key_fact_recall` (sem chamar nenhum LLM — roda 100% local):
+
+- **naive**: extração de texto crua via `pypdf` + split por caracteres com overlap.
+- **docling**: `HybridChunker` table-aware, o que a produção usa (`scripts/ingest.py`).
+
+A primeira tentativa comparou top-8 chunks de cada estratégia e deu vitória fácil pro naive (73%
+vs. 59%) — mas era um resultado enganoso: os chunks do Docling saem bem menores (~954 chars, corta
+em fronteira estrutural) que os do naive (~3948 chars, corta por tamanho fixo), então top-8 dava
+~4x mais texto bruto pro naive. Mais texto recuperado facilita achar um número solto no meio,
+independente de o retrieval ter sido preciso.
+
+Corrigindo para **orçamento de caracteres igual** (7.629 chars — o que `TOP_K=8` do Docling
+realmente entrega em produção hoje), o resultado inverte e se aproxima:
+
+| Estratégia | Chunks/pergunta (mesmo orçamento) | Key-fact recall |
+|---|---|---|
+| naive | 1,0 | 44% |
+| docling (produção) | 3,1 | 46% |
+
+Com o mesmo espaço de contexto, o naive aposta tudo em 1 chunk gigante; o Docling encaixa ~3
+chunks menores e mais focados no mesmo espaço — mecanicamente é o comportamento esperado de
+chunking table-aware. Duas ressalvas honestas: a margem (2 p.p.) é pequena e a amostra é de só 12
+perguntas — é sinal direcional, não prova estatística forte. E `key_fact_recall` só checa se o
+número aparece em algum lugar do texto recuperado, não se ele está coeso com o rótulo/tabela que
+dá contexto a ele — a vantagem real do table-aware chunking provavelmente é maior do que essa
+métrica consegue capturar.
+
+Reproduzir: `python scripts/compare_chunking.py` (grava `chunking_comparison.json`).

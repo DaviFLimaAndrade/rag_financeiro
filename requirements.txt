@@ -1,9 +1,13 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 langchain-huggingface
 langchain-groq
 langchain-google-genai
 langchain-core
+langgraph
 sentence-transformers
 chromadb
 python-dotenv
-docling
 streamlit
+
+-e .

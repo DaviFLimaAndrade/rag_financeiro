@@ -13,6 +13,9 @@ def retrieve(query: str, k: int | None = None) -> list[dict]:
             "page_no": meta.get("page_no"),
             "section": meta.get("section"),
             "source": meta.get("source"),
+            "distance": dist,
         }
-        for doc, meta in zip(results["documents"][0], results["metadatas"][0])
+        for doc, meta, dist in zip(
+            results["documents"][0], results["metadatas"][0], results["distances"][0]
+        )
     ]
