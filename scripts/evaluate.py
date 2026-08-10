@@ -20,6 +20,7 @@ from dataclasses import dataclass, asdict
 
 from rag_financeiro.evaluation.golden_dataset import load_golden_dataset
 from rag_financeiro.evaluation.judge import judge_answer
+from rag_financeiro.evaluation.metrics import key_fact_recall
 from rag_financeiro.generation.rag_chain import answer_question
 from rag_financeiro.generation.llm_provider import get_llm, current_provider_label
 
@@ -35,6 +36,7 @@ class EvalResult:
     failure_type: str
     justificativa: str
     source_ok: bool
+    key_fact_recall: float | None
     latency_seconds: float
     generated_answer: str
 
@@ -67,6 +69,8 @@ def run_evaluation() -> list[EvalResult]:
             judge_llm, case["question"], case["ground_truth"], response["answer"]
         )
 
+        kfr = key_fact_recall(case["ground_truth"], response["sources"])
+
         results.append(
             EvalResult(
                 question=case["question"],
@@ -75,6 +79,7 @@ def run_evaluation() -> list[EvalResult]:
                 failure_type=failure_type,
                 justificativa=justificativa,
                 source_ok=source_ok,
+                key_fact_recall=round(kfr, 2) if kfr is not None else None,
                 latency_seconds=round(elapsed, 2),
                 generated_answer=response["answer"][:200],
             )
@@ -91,6 +96,9 @@ def print_report(results: list[EvalResult]):
     avg_latency = sum(r.latency_seconds for r in results) / total if total else 0
     retrieval_failures = sum(1 for r in results if r.failure_type == "retrieval")
 
+    kfr_values = [r.key_fact_recall for r in results if r.key_fact_recall is not None]
+    avg_key_fact_recall = sum(kfr_values) / len(kfr_values) if kfr_values else None
+
     print("\n" + "=" * 60)
     print("RELATÓRIO DE AVALIAÇÃO — RAG FINANCEIRO (LLM-as-judge)")
     print("=" * 60)
@@ -98,13 +106,16 @@ def print_report(results: list[EvalResult]):
         status = "✅" if r.score >= 4 else "⚠️" if r.score == 3 else "❌"
         print(f"\n[{status} nota {r.score}/5] ({r.failure_type}) {r.question}")
         print(f"  Justificativa do judge: {r.justificativa}")
-        print(f"  Fonte correta: {r.source_ok} | Latência: {r.latency_seconds}s")
+        kfr_display = f"{r.key_fact_recall*100:.0f}%" if r.key_fact_recall is not None else "n/a"
+        print(f"  Fonte correta: {r.source_ok} | Key-fact recall: {kfr_display} | Latência: {r.latency_seconds}s")
         print(f"  Resposta (preview): {r.generated_answer}...")
 
     print("\n" + "-" * 60)
     print(f"Nota média (judge): {avg_score:.2f}/5")
     print(f"Taxa de aprovação (nota >= 4): {approved}/{total} ({approved/total*100:.0f}%)")
     print(f"Acurácia de retrieval (fonte correta): {source_accuracy*100:.0f}%")
+    if avg_key_fact_recall is not None:
+        print(f"Key-fact recall médio (fatos-chave recuperados): {avg_key_fact_recall*100:.0f}%")
     print(f"Falhas de retrieval (dado existia mas não foi encontrado): {retrieval_failures}/{total}")
     print(f"Latência média: {avg_latency:.2f}s")
     print("=" * 60 + "\n")
@@ -118,6 +129,7 @@ def print_report(results: list[EvalResult]):
                     "avg_score": round(avg_score, 2),
                     "approval_rate": round(approved / total, 2) if total else 0,
                     "source_accuracy": round(source_accuracy, 2),
+                    "avg_key_fact_recall": round(avg_key_fact_recall, 2) if avg_key_fact_recall is not None else None,
                     "retrieval_failures": retrieval_failures,
                     "avg_latency_seconds": round(avg_latency, 2),
                 },
