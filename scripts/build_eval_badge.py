@@ -23,11 +23,16 @@ def main():
 
     avg_score = summary["avg_score"]
     approval_rate = round(summary["approval_rate"] * 100)
+    message = f"{avg_score:.1f}/5 · {approval_rate}% aprovação"
+
+    avg_kfr = summary.get("avg_key_fact_recall")
+    if avg_kfr is not None:
+        message += f" · {round(avg_kfr * 100)}% key-fact recall"
 
     badge = {
         "schemaVersion": 1,
         "label": "RAG eval (LLM-as-judge)",
-        "message": f"{avg_score:.1f}/5 · {approval_rate}% aprovação",
+        "message": message,
         "color": color_for_score(avg_score),
     }
     BADGE_PATH.write_text(json.dumps(badge, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -56,6 +56,14 @@ de 1 a 5, com regras de calibração explícitas (ex.: uma recusa honesta quando
 no documento é sempre nota 2 — falha de retrieval — nunca é "perdoada" por ser honesta). O
 resultado é salvo em `eval_results.json` com nota média, taxa de aprovação e acurácia de fonte.
 
+Como o golden dataset não tem página/chunk esperado anotado (só um `expected_source`, sempre o
+mesmo — único PDF do corpus), a acurácia de retrieval também é medida por **key-fact recall**
+(`src/rag_financeiro/evaluation/metrics.py`): os trechos em `**negrito**` do `ground_truth` (os
+valores/fatos que a resposta precisa conter) são extraídos e verificados contra o texto dos chunks
+recuperados. É uma métrica aproximada — pode dar falso negativo se o PDF formata um número
+diferente do texto do ground truth — mas mede retrieval de verdade, sem precisar anotar o dataset
+nem gastar chamada de LLM extra.
+
 O badge no topo deste README reflete o resultado mais recente. Ele é atualizado automaticamente
 pelo workflow `.github/workflows/eval.yml` (GitHub Actions), que roda a avaliação com Groq a cada
 push no `main` que toque no pipeline do RAG, ou manualmente pela aba Actions ("Run workflow").
