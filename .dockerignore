@@ -1,0 +1,11 @@
+venv/
+.git/
+.gitignore
+__pycache__/
+**/__pycache__/
+*.pyc
+graphify-out/
+data/processed/
+eval_results.json
+chunking_comparison.json
+.env

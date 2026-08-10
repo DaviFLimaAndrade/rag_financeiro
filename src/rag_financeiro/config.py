@@ -14,11 +14,9 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 1000))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 200))
 
-# Modelo multilingue com bom desempenho em português.
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "financeiro_rag")
-
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" ou "gemini"
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -28,3 +26,5 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
 TOP_K = int(os.getenv("TOP_K", 8))
+
+RETRIEVAL_CONFIDENCE_THRESHOLD = float(os.getenv("RETRIEVAL_CONFIDENCE_THRESHOLD", 0.55))

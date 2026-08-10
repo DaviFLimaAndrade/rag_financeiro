@@ -1,0 +1,4 @@
+# Deps extras só para ingestão local (scripts/ingest.py, scripts/compare_chunking.py).
+-r requirements.txt
+docling
+pypdf

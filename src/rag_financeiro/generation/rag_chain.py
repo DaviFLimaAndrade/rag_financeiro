@@ -1,5 +1,9 @@
-from langchain_core.messages import HumanMessage, SystemMessage
+from typing import TypedDict
 
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import END, START, StateGraph
+
+from rag_financeiro import config
 from rag_financeiro.retrieval.retriever import retrieve
 from rag_financeiro.generation.llm_provider import get_llm, extract_text
 
@@ -17,22 +21,108 @@ SYSTEM_PROMPT = (
     "claramente que não encontrou a informação no relatório."
 )
 
+REWRITE_SYSTEM_PROMPT = (
+    "Reformule a pergunta a seguir para maximizar a chance de encontrar trechos relevantes numa "
+    "busca por similaridade semântica em um relatório de estabilidade financeira do Banco Central "
+    "do Brasil. Retorne APENAS a pergunta reformulada, sem explicações nem aspas."
+)
 
-def answer_question(question: str, k: int | None = None, provider: str | None = None) -> dict:
-    chunks = retrieve(question, k=k)
+
+class RAGState(TypedDict):
+    question: str  #
+    original_question: str  
+    provider: str | None
+    k: int | None
+    chunks: list[dict]
+    min_distance: float | None
+    retried: bool
+    answer: str
+
+
+def _retrieve_node(state: RAGState) -> dict:
+    chunks = retrieve(state["question"], k=state["k"])
+    min_distance = min((c["distance"] for c in chunks), default=None)
+    return {"chunks": chunks, "min_distance": min_distance}
+
+
+def _route_after_retrieve(state: RAGState) -> str:
+    if not state["chunks"]:
+        return "generate"
+    if (
+        state["min_distance"] is not None
+        and state["min_distance"] > config.RETRIEVAL_CONFIDENCE_THRESHOLD
+        and not state["retried"]
+    ):
+        return "rewrite"
+    return "generate"
+
+
+def _rewrite_query_node(state: RAGState) -> dict:
+    llm = get_llm(provider=state["provider"])
+    response = llm.invoke(
+        [
+            SystemMessage(content=REWRITE_SYSTEM_PROMPT),
+            HumanMessage(content=state["original_question"]),
+        ]
+    )
+    rewritten = extract_text(response.content).strip()
+    return {"question": rewritten or state["question"], "retried": True}
+
+
+def _generate_node(state: RAGState) -> dict:
+    chunks = state["chunks"]
     if not chunks:
-        return {"answer": NO_CONTEXT_ANSWER, "sources": []}
+        return {"answer": NO_CONTEXT_ANSWER}
 
     context = "\n\n".join(
         f"[Fonte: {c['source']}, p.{c['page_no']}, {c['section'] or 'sem seção'}] {c['text']}"
         for c in chunks
     )
-
-    llm = get_llm(provider=provider)
+    llm = get_llm(provider=state["provider"])
     response = llm.invoke(
         [
             SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Contexto:\n{context}\n\nPergunta: {question}"),
+            HumanMessage(content=f"Contexto:\n{context}\n\nPergunta: {state['original_question']}"),
         ]
     )
-    return {"answer": extract_text(response.content), "sources": chunks}
+    return {"answer": extract_text(response.content)}
+
+
+_graph = None
+
+
+def _get_graph():
+    global _graph
+    if _graph is None:
+        builder = StateGraph(RAGState)
+        builder.add_node("retrieve", _retrieve_node)
+        builder.add_node("rewrite_query", _rewrite_query_node)
+        builder.add_node("generate", _generate_node)
+
+        builder.add_edge(START, "retrieve")
+        builder.add_conditional_edges(
+            "retrieve",
+            _route_after_retrieve,
+            {"rewrite": "rewrite_query", "generate": "generate"},
+        )
+        builder.add_edge("rewrite_query", "retrieve")
+        builder.add_edge("generate", END)
+
+        _graph = builder.compile()
+    return _graph
+
+
+def answer_question(question: str, k: int | None = None, provider: str | None = None) -> dict:
+    graph = _get_graph()
+    initial_state: RAGState = {
+        "question": question,
+        "original_question": question,
+        "provider": provider,
+        "k": k,
+        "chunks": [],
+        "min_distance": None,
+        "retried": False,
+        "answer": "",
+    }
+    final_state = graph.invoke(initial_state)
+    return {"answer": final_state["answer"], "sources": final_state["chunks"]}
