@@ -30,27 +30,27 @@ REWRITE_SYSTEM_PROMPT = (
 
 class RAGState(TypedDict):
     question: str  #
-    original_question: str  
+    original_question: str
     provider: str | None
     k: int | None
     chunks: list[dict]
-    min_distance: float | None
+    top_rerank_score: float | None
     retried: bool
     answer: str
 
 
 def _retrieve_node(state: RAGState) -> dict:
     chunks = retrieve(state["question"], k=state["k"])
-    min_distance = min((c["distance"] for c in chunks), default=None)
-    return {"chunks": chunks, "min_distance": min_distance}
+    top_rerank_score = max((c["rerank_score"] for c in chunks), default=None)
+    return {"chunks": chunks, "top_rerank_score": top_rerank_score}
 
 
 def _route_after_retrieve(state: RAGState) -> str:
     if not state["chunks"]:
         return "generate"
     if (
-        state["min_distance"] is not None
-        and state["min_distance"] > config.RETRIEVAL_CONFIDENCE_THRESHOLD
+        state["top_rerank_score"] is not None
+        and state["top_rerank_score"] < config.RETRIEVAL_CONFIDENCE_THRESHOLD
         and not state["retried"]
     ):
         return "rewrite"
@@ -120,7 +120,7 @@ def answer_question(question: str, k: int | None = None, provider: str | None = 
         "provider": provider,
         "k": k,
         "chunks": [],
-        "min_distance": None,
+        "top_rerank_score": None,
         "retried": False,
         "answer": "",
     }

@@ -27,4 +27,11 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
 TOP_K = int(os.getenv("TOP_K", 8))
 
-RETRIEVAL_CONFIDENCE_THRESHOLD = float(os.getenv("RETRIEVAL_CONFIDENCE_THRESHOLD", 0.55))
+# Retrieval híbrido: fusão RRF entre busca densa e BM25, reordenada por cross-encoder antes do TOP_K.
+DENSE_TOP_K = int(os.getenv("DENSE_TOP_K", 20))
+BM25_TOP_K = int(os.getenv("BM25_TOP_K", 20))
+RERANK_POOL_SIZE = int(os.getenv("RERANK_POOL_SIZE", 20))
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
+
+# Score mínimo do reranker pro melhor candidato; abaixo disso, reescreve a query e tenta de novo.
+RETRIEVAL_CONFIDENCE_THRESHOLD = float(os.getenv("RETRIEVAL_CONFIDENCE_THRESHOLD", 0.1))

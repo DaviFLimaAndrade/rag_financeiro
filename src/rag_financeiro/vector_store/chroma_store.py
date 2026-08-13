@@ -41,5 +41,8 @@ def add_chunks(chunks: list[dict], embeddings: list[list[float]]) -> int:
 def query(query_embedding: list[float], k: int) -> dict:
     return get_collection().query(query_embeddings=[query_embedding], n_results=k)
 
+def get_all() -> dict:
+    return get_collection().get(include=["documents", "metadatas"])
+
 def count() -> int:
     return get_collection().count()
