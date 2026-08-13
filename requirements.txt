@@ -6,6 +6,7 @@ langchain-google-genai
 langchain-core
 langgraph
 sentence-transformers
+rank_bm25
 chromadb
 python-dotenv
 streamlit
