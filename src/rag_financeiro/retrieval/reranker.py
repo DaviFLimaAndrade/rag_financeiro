@@ -12,6 +12,10 @@ def _get_model() -> CrossEncoder:
     return _model
 
 
+def warmup() -> None:
+    _get_model()
+
+
 def rerank(query: str, candidates: list[dict], top_k: int) -> list[dict]:
     if not candidates:
         return []

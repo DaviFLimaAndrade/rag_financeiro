@@ -54,8 +54,6 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
-!data/processed/chroma_db/
-!data/processed/chroma_db/**
 
 # Chroma vector store
 chroma_data/
@@ -65,7 +63,6 @@ chroma_data/
 # Model files and embeddings cache
 *.model
 *.bin
-!data/processed/chroma_db/**/*.bin
 *.pkl
 embeddings_cache/
 

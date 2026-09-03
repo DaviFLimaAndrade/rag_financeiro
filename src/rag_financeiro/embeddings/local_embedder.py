@@ -19,3 +19,6 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
 
 def embed_query(text: str) -> list[float]:
     return get_embedder().embed_query(text)
+
+def warmup() -> None:
+    get_embedder()

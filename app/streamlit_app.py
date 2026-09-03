@@ -3,11 +3,25 @@ import time
 import streamlit as st
 
 from rag_financeiro.vector_store import chroma_store
+from rag_financeiro.embeddings import local_embedder
+from rag_financeiro.retrieval import reranker
+from rag_financeiro.cache import matcher as cache_matcher
 from rag_financeiro.generation.rag_chain import answer_question
-from rag_financeiro.generation.llm_provider import current_provider_label
+from rag_financeiro.generation.llm_provider import current_provider_label, LLMTimeoutError
 
 st.set_page_config(page_title="RAG Financeiro — BCB", page_icon="📊")
 st.title("📊 RAG Financeiro — Relatório de Estabilidade Financeira (BCB)")
+
+
+@st.cache_resource(show_spinner="Carregando modelos locais...")
+def _warmup_models():
+    local_embedder.warmup()
+    reranker.warmup()
+    cache_matcher.warmup()
+    return True
+
+
+_warmup_models()
 
 with st.sidebar:
     st.header("Configurações")
@@ -67,6 +81,12 @@ if question:
         try:
             with st.spinner("Consultando o relatório..."):
                 response = answer_question(question, provider=provider)
+        except LLMTimeoutError:
+            st.error(
+                f"⏱️ O provedor {current_provider_label(provider)} não respondeu a tempo. "
+                "Tente trocar de provedor na barra lateral."
+            )
+            st.stop()
         except Exception as e:
             st.error(f"Erro ao consultar: {e}")
             st.stop()

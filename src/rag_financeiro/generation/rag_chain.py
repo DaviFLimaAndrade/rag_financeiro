@@ -4,8 +4,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 
 from rag_financeiro import config
+from rag_financeiro.cache import matcher as cache_matcher
 from rag_financeiro.retrieval.retriever import retrieve
-from rag_financeiro.generation.llm_provider import get_llm, extract_text
+from rag_financeiro.generation.llm_provider import extract_text, invoke_with_timeout
 
 NO_CONTEXT_ANSWER = "Não encontrei essa informação no relatório de estabilidade financeira."
 
@@ -36,7 +37,29 @@ class RAGState(TypedDict):
     chunks: list[dict]
     top_rerank_score: float | None
     retried: bool
+    cache_hit: dict | None
     answer: str
+
+
+def _cache_lookup_node(state: RAGState) -> dict:
+    return {"cache_hit": cache_matcher.lookup(state["question"])}
+
+
+def _route_after_cache_lookup(state: RAGState) -> str:
+    return "generate_from_cache" if state["cache_hit"] else "retrieve"
+
+
+def _generate_from_cache_node(state: RAGState) -> dict:
+    entry = state["cache_hit"]
+    answer = f"{entry['answer']} (Fonte: {entry['source']}, p. {entry['page_no']})"
+    source = {
+        "text": entry["answer"],
+        "page_no": entry["page_no"],
+        "section": None,
+        "source": entry["source"],
+        "rerank_score": entry["match_score"],
+    }
+    return {"answer": answer, "chunks": [source]}
 
 
 def _retrieve_node(state: RAGState) -> dict:
@@ -58,12 +81,13 @@ def _route_after_retrieve(state: RAGState) -> str:
 
 
 def _rewrite_query_node(state: RAGState) -> dict:
-    llm = get_llm(provider=state["provider"])
-    response = llm.invoke(
+    response = invoke_with_timeout(
+        state["provider"],
         [
             SystemMessage(content=REWRITE_SYSTEM_PROMPT),
             HumanMessage(content=state["original_question"]),
-        ]
+        ],
+        purpose="rewrite",
     )
     rewritten = extract_text(response.content).strip()
     return {"question": rewritten or state["question"], "retried": True}
@@ -78,12 +102,12 @@ def _generate_node(state: RAGState) -> dict:
         f"[Fonte: {c['source']}, p.{c['page_no']}, {c['section'] or 'sem seção'}] {c['text']}"
         for c in chunks
     )
-    llm = get_llm(provider=state["provider"])
-    response = llm.invoke(
+    response = invoke_with_timeout(
+        state["provider"],
         [
             SystemMessage(content=SYSTEM_PROMPT),
             HumanMessage(content=f"Contexto:\n{context}\n\nPergunta: {state['original_question']}"),
-        ]
+        ],
     )
     return {"answer": extract_text(response.content)}
 
@@ -95,17 +119,25 @@ def _get_graph():
     global _graph
     if _graph is None:
         builder = StateGraph(RAGState)
+        builder.add_node("cache_lookup", _cache_lookup_node)
+        builder.add_node("generate_from_cache", _generate_from_cache_node)
         builder.add_node("retrieve", _retrieve_node)
         builder.add_node("rewrite_query", _rewrite_query_node)
         builder.add_node("generate", _generate_node)
 
-        builder.add_edge(START, "retrieve")
+        builder.add_edge(START, "cache_lookup")
+        builder.add_conditional_edges(
+            "cache_lookup",
+            _route_after_cache_lookup,
+            {"generate_from_cache": "generate_from_cache", "retrieve": "retrieve"},
+        )
         builder.add_conditional_edges(
             "retrieve",
             _route_after_retrieve,
             {"rewrite": "rewrite_query", "generate": "generate"},
         )
         builder.add_edge("rewrite_query", "retrieve")
+        builder.add_edge("generate_from_cache", END)
         builder.add_edge("generate", END)
 
         _graph = builder.compile()
@@ -122,6 +154,7 @@ def answer_question(question: str, k: int | None = None, provider: str | None = 
         "chunks": [],
         "top_rerank_score": None,
         "retried": False,
+        "cache_hit": None,
         "answer": "",
     }
     final_state = graph.invoke(initial_state)

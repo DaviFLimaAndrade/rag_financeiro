@@ -1,24 +1,74 @@
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+
 from rag_financeiro import config
 
+REQUEST_TIMEOUT_SECONDS = 15
 
-def get_llm(provider: str | None = None, temperature: float = 0):
+_llm_cache: dict[tuple[str, float], object] = {}
+
+
+class LLMTimeoutError(Exception):
+    pass
+
+
+def invoke_with_timeout(
+    provider: str | None,
+    messages,
+    temperature: float = 0,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+    purpose: str = "generate",
+):
+    def _call():
+        llm = get_llm(provider=provider, temperature=temperature, purpose=purpose)
+        return llm.invoke(messages)
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(_call)
+    try:
+        return future.result(timeout=timeout)
+    except FutureTimeoutError:
+        raise LLMTimeoutError(
+            f"O provedor não respondeu em {timeout:.0f}s. Tente trocar de provedor (Groq/Gemini)."
+        )
+    finally:
+        executor.shutdown(wait=False)
+
+
+def get_llm(provider: str | None = None, temperature: float = 0, purpose: str = "generate"):
     provider = provider or config.LLM_PROVIDER
+    cache_key = (provider, temperature, purpose)
+    if cache_key in _llm_cache:
+        return _llm_cache[cache_key]
 
     if provider == "groq":
         if not config.GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY não configurada no .env")
         from langchain_groq import ChatGroq
-        return ChatGroq(model=config.GROQ_MODEL, api_key=config.GROQ_API_KEY, temperature=temperature)
+        model_name = config.GROQ_REWRITE_MODEL if purpose == "rewrite" else config.GROQ_MODEL
+        llm = ChatGroq(
+            model=model_name,
+            api_key=config.GROQ_API_KEY,
+            temperature=temperature,
+            request_timeout=REQUEST_TIMEOUT_SECONDS,
+        )
 
-    if provider == "gemini":
+    elif provider == "gemini":
         if not config.GEMINI_API_KEY:
             raise RuntimeError("GEMINI_API_KEY não configurada no .env")
         from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(
-            model=config.GEMINI_MODEL, google_api_key=config.GEMINI_API_KEY, temperature=temperature
+        model_name = config.GEMINI_REWRITE_MODEL if purpose == "rewrite" else config.GEMINI_MODEL
+        llm = ChatGoogleGenerativeAI(
+            model=model_name,
+            google_api_key=config.GEMINI_API_KEY,
+            temperature=temperature,
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
 
-    raise RuntimeError(f"LLM_PROVIDER desconhecido: {provider!r} (use 'groq' ou 'gemini')")
+    else:
+        raise RuntimeError(f"LLM_PROVIDER desconhecido: {provider!r} (use 'groq' ou 'gemini')")
+
+    _llm_cache[cache_key] = llm
+    return llm
 
 
 def current_provider_label(provider: str | None = None) -> str:
