@@ -67,6 +67,12 @@ de 1 a 5, com regras de calibração explícitas (ex.: uma recusa honesta quando
 no documento é sempre nota 2 — falha de retrieval — nunca é "perdoada" por ser honesta). O
 resultado é salvo em `eval_results.json` com nota média, taxa de aprovação e acurácia de fonte.
 
+O juiz (`JUDGE_PROVIDER`, padrão Gemini) é sempre um provider diferente do gerador (Groq) de
+propósito — um LLM avaliando a própria resposta (self-grading) tende a ser mais leniente consigo
+mesmo, o que inflaria a nota do badge. Rodar localmente requer `GEMINI_API_KEY` no `.env`; no CI
+(GitHub Actions), requer o secret `GEMINI_API_KEY` configurado no repositório (Settings → Secrets
+and variables → Actions), junto do `GROQ_API_KEY` já existente.
+
 Como o golden dataset não tem página/chunk esperado anotado (só um `expected_source`, sempre o
 mesmo — único PDF do corpus), a acurácia de retrieval também é medida por **key-fact recall**
 (`src/rag_financeiro/evaluation/metrics.py`): os trechos em `**negrito**` do `ground_truth` (os
@@ -76,10 +82,9 @@ diferente do texto do ground truth — mas mede retrieval de verdade, sem precis
 nem gastar chamada de LLM extra.
 
 O badge no topo deste README reflete o resultado mais recente. Ele é atualizado automaticamente
-pelo workflow `.github/workflows/eval.yml` (GitHub Actions), que roda a avaliação com Groq a cada
-push no `main` que toque no pipeline do RAG, ou manualmente pela aba Actions ("Run workflow").
-Requer o secret `GROQ_API_KEY` configurado no repositório (Settings → Secrets and variables →
-Actions).
+pelo workflow `.github/workflows/eval.yml` (GitHub Actions), que roda a avaliação (geração via
+Groq, julgamento via Gemini) a cada push no `main` que toque no pipeline do RAG, ou manualmente
+pela aba Actions ("Run workflow").
 
 ## Experimento: chunking naive vs. table-aware
 

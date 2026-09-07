@@ -76,8 +76,19 @@ def get_llm(provider: str | None = None, temperature: float = 0, purpose: str = 
             max_retries=0,
         )
 
+    elif provider == "gemini":
+        if not config.GEMINI_API_KEY:
+            raise RuntimeError("GEMINI_API_KEY não configurada no .env")
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        llm = ChatGoogleGenerativeAI(
+            model=config.GEMINI_MODEL,
+            google_api_key=config.GEMINI_API_KEY,
+            temperature=temperature,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+
     else:
-        raise RuntimeError(f"LLM_PROVIDER desconhecido: {provider!r} (use 'groq')")
+        raise RuntimeError(f"provider desconhecido: {provider!r} (use 'groq' ou 'gemini')")
 
     _llm_cache[cache_key] = llm
     return llm
@@ -87,6 +98,8 @@ def current_provider_label(provider: str | None = None) -> str:
     provider = provider or config.LLM_PROVIDER
     if provider == "groq":
         return f"Groq ({config.GROQ_MODEL})"
+    if provider == "gemini":
+        return f"Gemini ({config.GEMINI_MODEL})"
     return provider
 
 

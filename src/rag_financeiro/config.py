@@ -23,6 +23,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_REWRITE_MODEL = os.getenv("GROQ_REWRITE_MODEL", "openai/gpt-oss-20b")
 
+# Judge da avaliação (scripts/evaluate.py) usa um provider diferente do gerador (Groq) de
+# propósito — um LLM não deve avaliar a própria resposta (self-grading compromete o número).
+JUDGE_PROVIDER = os.getenv("JUDGE_PROVIDER", "gemini")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+
 TOP_K = int(os.getenv("TOP_K", 8))
 
 MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", 4))
