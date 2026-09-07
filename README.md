@@ -9,7 +9,7 @@ Estabilidade Financeira do Banco Central do Brasil (`data/raw/relatorio_estabili
 
 ```
 PDF -> Docling (parsing/chunking table-aware) -> embeddings locais (bge-m3)
-    -> ChromaDB -> geração via Groq -> Streamlit
+    -> retrieval híbrido (denso + BM25 + rerank) -> geração via Groq (LangGraph) -> Streamlit
 ```
 
 - **Docling** faz o parsing do PDF preservando layout e tabelas. O relatório do BCB tem indicadores
@@ -19,11 +19,20 @@ PDF -> Docling (parsing/chunking table-aware) -> embeddings locais (bge-m3)
 - **Embeddings locais** (`sentence-transformers`, modelo `BAAI/bge-m3`, multilingue) rodam a
   indexação inteira sem chamar nenhuma API externa — evita esbarrar em limites de free-tier ao
   reprocessar o PDF.
-- **Geração via Groq** (`LLM_PROVIDER` no `.env`) — só essa etapa (e o judge da avaliação) chama
-  API externa.
+- **Retrieval híbrido**: busca densa (bge-m3) e BM25 rodam em paralelo, os resultados são
+  fundidos por RRF e o pool combinado é reordenado por um cross-encoder (`BAAI/bge-reranker-base`).
+  Se o score do melhor candidato fica abaixo de `RETRIEVAL_CONFIDENCE_THRESHOLD`, a query é
+  reescrita e o retrieval tenta de novo uma vez antes de gerar a resposta.
+- **Cache (CAG — Cache-Augmented Generation)**: um `cache.json` pré-construído guarda
+  perguntas/fatos estáveis do relatório; em caso de hit, o pipeline pula embedding denso, BM25 e
+  rerank, respondendo direto com o contexto reduzido.
+- **Geração via Groq (LangGraph)**, com histórico de conversa: uma pergunta de acompanhamento
+  (ex. "e sobre isso?") é condensada numa pergunta autocontida antes do retrieval. Chamadas ao LLM
+  têm timeout configurado, e erros de quota/contexto são classificados na UI com opção de
+  "tentar novamente".
 - **ChromaDB** local (`data/processed/chroma_db`), com `upsert()` por hash do conteúdo do chunk —
   rodar a ingestão de novo não duplica dados.
-- **Streamlit** como interface de chat.
+- **Streamlit** como interface de chat, com múltiplas conversas na sidebar.
 - **Observabilidade via Arize AX** (opcional) — tracing de todo o pipeline (LangGraph, chamadas de
   LLM, retrieval híbrido, rerank, cache lookup) via OpenTelemetry/OpenInference. Sem
   `ARIZE_SPACE_ID`/`ARIZE_API_KEY` no `.env`, o app roda normalmente sem tracing.
