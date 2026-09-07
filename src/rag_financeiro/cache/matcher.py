@@ -4,6 +4,7 @@ import numpy as np
 
 from rag_financeiro import config
 from rag_financeiro.embeddings.local_embedder import embed_documents, embed_query
+from rag_financeiro.observability import tracer
 
 _entries: list[dict] | None = None
 _embeddings: np.ndarray | None = None
@@ -33,16 +34,21 @@ def warmup() -> None:
 
 
 def lookup(question: str) -> dict | None:
-    entries, embeddings = _load()
-    if not entries:
-        return None
+    with tracer.start_as_current_span("cache_lookup") as span:
+        entries, embeddings = _load()
+        if not entries:
+            span.set_attribute("cache.hit", False)
+            return None
 
-    query_emb = np.array(embed_query(question))
-    scores = embeddings @ query_emb
-    best_idx = int(scores.argmax())
-    best_score = float(scores[best_idx])
+        query_emb = np.array(embed_query(question))
+        scores = embeddings @ query_emb
+        best_idx = int(scores.argmax())
+        best_score = float(scores[best_idx])
+        span.set_attribute("cache.best_score", best_score)
 
-    if best_score < config.CACHE_SIMILARITY_THRESHOLD:
-        return None
+        if best_score < config.CACHE_SIMILARITY_THRESHOLD:
+            span.set_attribute("cache.hit", False)
+            return None
 
-    return {**entries[best_idx], "match_score": best_score}
+        span.set_attribute("cache.hit", True)
+        return {**entries[best_idx], "match_score": best_score}

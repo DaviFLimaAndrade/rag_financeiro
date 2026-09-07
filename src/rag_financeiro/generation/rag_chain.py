@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 
 from rag_financeiro import config
@@ -28,17 +28,54 @@ REWRITE_SYSTEM_PROMPT = (
     "do Brasil. Retorne APENAS a pergunta reformulada, sem explicações nem aspas."
 )
 
+CONDENSE_SYSTEM_PROMPT = (
+    "Dado o histórico de uma conversa e uma pergunta de acompanhamento, reformule a pergunta de "
+    "acompanhamento como uma pergunta autocontida, resolvendo pronomes e referências implícitas "
+    "(ex: 'e sobre isso?', 'quais os impactos disso?') usando o histórico. Preserve a intenção "
+    "original da pergunta de acompanhamento. Retorne APENAS a pergunta reformulada, sem explicações "
+    "nem aspas."
+)
+
 
 class RAGState(TypedDict):
-    question: str  #
+    question: str
     original_question: str
     provider: str | None
     k: int | None
+    history: list[dict]
     chunks: list[dict]
     top_rerank_score: float | None
     retried: bool
     cache_hit: dict | None
     answer: str
+
+
+def _history_messages(history: list[dict]) -> list:
+    messages = []
+    for turn in history:
+        if turn["role"] == "user":
+            messages.append(HumanMessage(content=turn["content"]))
+        elif turn["role"] == "assistant":
+            messages.append(AIMessage(content=turn["content"]))
+    return messages
+
+
+def _condense_query_node(state: RAGState) -> dict:
+    if not state["history"]:
+        return {}
+    history_text = "\n".join(f"{turn['role']}: {turn['content']}" for turn in state["history"])
+    response = invoke_with_timeout(
+        state["provider"],
+        [
+            SystemMessage(content=CONDENSE_SYSTEM_PROMPT),
+            HumanMessage(
+                content=f"Histórico:\n{history_text}\n\nPergunta de acompanhamento: {state['question']}"
+            ),
+        ],
+        purpose="rewrite",
+    )
+    standalone = extract_text(response.content).strip()
+    return {"question": standalone or state["question"]}
 
 
 def _cache_lookup_node(state: RAGState) -> dict:
@@ -85,7 +122,7 @@ def _rewrite_query_node(state: RAGState) -> dict:
         state["provider"],
         [
             SystemMessage(content=REWRITE_SYSTEM_PROMPT),
-            HumanMessage(content=state["original_question"]),
+            HumanMessage(content=state["question"]),
         ],
         purpose="rewrite",
     )
@@ -93,22 +130,25 @@ def _rewrite_query_node(state: RAGState) -> dict:
     return {"question": rewritten or state["question"], "retried": True}
 
 
+def _build_context(chunks: list[dict]) -> str:
+    return "\n\n".join(
+        f"[Fonte: {c['source']}, p.{c['page_no']}, {c['section'] or 'sem seção'}] {c['text']}"
+        for c in chunks
+    )
+
+
 def _generate_node(state: RAGState) -> dict:
     chunks = state["chunks"]
     if not chunks:
         return {"answer": NO_CONTEXT_ANSWER}
 
-    context = "\n\n".join(
-        f"[Fonte: {c['source']}, p.{c['page_no']}, {c['section'] or 'sem seção'}] {c['text']}"
-        for c in chunks
+    context = _build_context(chunks)
+    messages = [SystemMessage(content=SYSTEM_PROMPT)]
+    messages.extend(_history_messages(state["history"]))
+    messages.append(
+        HumanMessage(content=f"Contexto:\n{context}\n\nPergunta: {state['original_question']}")
     )
-    response = invoke_with_timeout(
-        state["provider"],
-        [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Contexto:\n{context}\n\nPergunta: {state['original_question']}"),
-        ],
-    )
+    response = invoke_with_timeout(state["provider"], messages)
     return {"answer": extract_text(response.content)}
 
 
@@ -119,13 +159,15 @@ def _get_graph():
     global _graph
     if _graph is None:
         builder = StateGraph(RAGState)
+        builder.add_node("condense_query", _condense_query_node)
         builder.add_node("cache_lookup", _cache_lookup_node)
         builder.add_node("generate_from_cache", _generate_from_cache_node)
         builder.add_node("retrieve", _retrieve_node)
         builder.add_node("rewrite_query", _rewrite_query_node)
         builder.add_node("generate", _generate_node)
 
-        builder.add_edge(START, "cache_lookup")
+        builder.add_edge(START, "condense_query")
+        builder.add_edge("condense_query", "cache_lookup")
         builder.add_conditional_edges(
             "cache_lookup",
             _route_after_cache_lookup,
@@ -144,13 +186,19 @@ def _get_graph():
     return _graph
 
 
-def answer_question(question: str, k: int | None = None, provider: str | None = None) -> dict:
+def answer_question(
+    question: str,
+    k: int | None = None,
+    provider: str | None = None,
+    history: list[dict] | None = None,
+) -> dict:
     graph = _get_graph()
     initial_state: RAGState = {
         "question": question,
         "original_question": question,
         "provider": provider,
         "k": k,
+        "history": history or [],
         "chunks": [],
         "top_rerank_score": None,
         "retried": False,
@@ -158,4 +206,7 @@ def answer_question(question: str, k: int | None = None, provider: str | None = 
         "answer": "",
     }
     final_state = graph.invoke(initial_state)
-    return {"answer": final_state["answer"], "sources": final_state["chunks"]}
+    return {
+        "answer": final_state["answer"],
+        "sources": final_state["chunks"],
+    }

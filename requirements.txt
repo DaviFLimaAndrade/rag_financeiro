@@ -2,7 +2,6 @@
 torch
 langchain-huggingface
 langchain-groq
-langchain-google-genai
 langchain-core
 langgraph
 sentence-transformers
@@ -10,5 +9,7 @@ rank_bm25
 chromadb
 python-dotenv
 streamlit
+arize-otel
+openinference-instrumentation-langchain
 
 -e .

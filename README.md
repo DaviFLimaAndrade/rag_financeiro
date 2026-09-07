@@ -9,7 +9,7 @@ Estabilidade Financeira do Banco Central do Brasil (`data/raw/relatorio_estabili
 
 ```
 PDF -> Docling (parsing/chunking table-aware) -> embeddings locais (bge-m3)
-    -> ChromaDB -> geração via Groq ou Gemini -> Streamlit
+    -> ChromaDB -> geração via Groq -> Streamlit
 ```
 
 - **Docling** faz o parsing do PDF preservando layout e tabelas. O relatório do BCB tem indicadores
@@ -19,11 +19,14 @@ PDF -> Docling (parsing/chunking table-aware) -> embeddings locais (bge-m3)
 - **Embeddings locais** (`sentence-transformers`, modelo `BAAI/bge-m3`, multilingue) rodam a
   indexação inteira sem chamar nenhuma API externa — evita esbarrar em limites de free-tier ao
   reprocessar o PDF.
-- **Geração via Groq ou Gemini** (`LLM_PROVIDER` no `.env`, com override por requisição) — só essa
-  etapa (e o judge da avaliação) chama API externa.
+- **Geração via Groq** (`LLM_PROVIDER` no `.env`) — só essa etapa (e o judge da avaliação) chama
+  API externa.
 - **ChromaDB** local (`data/processed/chroma_db`), com `upsert()` por hash do conteúdo do chunk —
   rodar a ingestão de novo não duplica dados.
-- **Streamlit** como interface de chat, com seletor de provider na sidebar.
+- **Streamlit** como interface de chat.
+- **Observabilidade via Arize AX** (opcional) — tracing de todo o pipeline (LangGraph, chamadas de
+  LLM, retrieval híbrido, rerank, cache lookup) via OpenTelemetry/OpenInference. Sem
+  `ARIZE_SPACE_ID`/`ARIZE_API_KEY` no `.env`, o app roda normalmente sem tracing.
 
 ## Setup
 
@@ -32,8 +35,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-Configure o `.env` (veja `config.py` para todas as variáveis): no mínimo `GEMINI_API_KEY` e/ou
-`GROQ_API_KEY`, conforme o `LLM_PROVIDER` escolhido.
+Configure o `.env` (veja `config.py` para todas as variáveis): no mínimo `GROQ_API_KEY`.
 
 ## Como rodar
 

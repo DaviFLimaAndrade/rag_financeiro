@@ -28,6 +28,3 @@ def key_fact_recall(ground_truth: str, retrieved_chunks: list[dict]) -> float | 
     context = _normalize(" ".join(c["text"] for c in retrieved_chunks))
     hits = sum(1 for fact in facts if _normalize(fact) in context)
     return hits / len(facts)
-
-
-# depois dá pra adicionar faithfulness, answer_relevancy etc via RAGAS

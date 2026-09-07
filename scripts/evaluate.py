@@ -18,6 +18,10 @@ import logging
 import time
 from dataclasses import dataclass, asdict
 
+from rag_financeiro.observability import setup_tracing
+
+setup_tracing()
+
 from rag_financeiro.evaluation.golden_dataset import load_golden_dataset
 from rag_financeiro.evaluation.judge import judge_answer
 from rag_financeiro.evaluation.metrics import key_fact_recall

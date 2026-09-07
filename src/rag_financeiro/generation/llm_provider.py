@@ -11,6 +11,31 @@ class LLMTimeoutError(Exception):
     pass
 
 
+_QUOTA_MARKERS = ("rate limit", "quota", "resource_exhausted", "resource exhausted", "429")
+_CONTEXT_MARKERS = (
+    "context length",
+    "context_length",
+    "maximum context",
+    "too many tokens",
+    "token limit",
+    "input is too long",
+)
+
+
+def classify_error(error: Exception) -> str:
+    """Classifica um erro de provedor pra dar uma mensagem útil ao usuário.
+
+    Em vez de importar o SDK do provedor só pra pegar o tipo certo de exceção (limite de cota,
+    contexto grande demais), inspeciona o texto do erro por marcadores conhecidos.
+    """
+    text = str(error).lower()
+    if any(marker in text for marker in _QUOTA_MARKERS):
+        return "quota"
+    if any(marker in text for marker in _CONTEXT_MARKERS):
+        return "context"
+    return "unknown"
+
+
 def invoke_with_timeout(
     provider: str | None,
     messages,
@@ -27,9 +52,7 @@ def invoke_with_timeout(
     try:
         return future.result(timeout=timeout)
     except FutureTimeoutError:
-        raise LLMTimeoutError(
-            f"O provedor não respondeu em {timeout:.0f}s. Tente trocar de provedor (Groq/Gemini)."
-        )
+        raise LLMTimeoutError(f"O provedor não respondeu em {timeout:.0f}s. Tente de novo.")
     finally:
         executor.shutdown(wait=False)
 
@@ -50,22 +73,11 @@ def get_llm(provider: str | None = None, temperature: float = 0, purpose: str = 
             api_key=config.GROQ_API_KEY,
             temperature=temperature,
             request_timeout=REQUEST_TIMEOUT_SECONDS,
-        )
-
-    elif provider == "gemini":
-        if not config.GEMINI_API_KEY:
-            raise RuntimeError("GEMINI_API_KEY não configurada no .env")
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        model_name = config.GEMINI_REWRITE_MODEL if purpose == "rewrite" else config.GEMINI_MODEL
-        llm = ChatGoogleGenerativeAI(
-            model=model_name,
-            google_api_key=config.GEMINI_API_KEY,
-            temperature=temperature,
-            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=0,
         )
 
     else:
-        raise RuntimeError(f"LLM_PROVIDER desconhecido: {provider!r} (use 'groq' ou 'gemini')")
+        raise RuntimeError(f"LLM_PROVIDER desconhecido: {provider!r} (use 'groq')")
 
     _llm_cache[cache_key] = llm
     return llm
@@ -75,8 +87,6 @@ def current_provider_label(provider: str | None = None) -> str:
     provider = provider or config.LLM_PROVIDER
     if provider == "groq":
         return f"Groq ({config.GROQ_MODEL})"
-    if provider == "gemini":
-        return f"Gemini ({config.GEMINI_MODEL})"
     return provider
 
 

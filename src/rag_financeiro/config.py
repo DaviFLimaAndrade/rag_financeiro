@@ -17,29 +17,27 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 200))
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "financeiro_rag")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" ou "gemini"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 GROQ_REWRITE_MODEL = os.getenv("GROQ_REWRITE_MODEL", "openai/gpt-oss-20b")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-GEMINI_REWRITE_MODEL = os.getenv("GEMINI_REWRITE_MODEL", "gemini-flash-lite-latest")
-
 TOP_K = int(os.getenv("TOP_K", 8))
 
-# Retrieval híbrido: fusão RRF entre busca densa e BM25, reordenada por cross-encoder antes do TOP_K.
+MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", 4))
+
 DENSE_TOP_K = int(os.getenv("DENSE_TOP_K", 20))
 BM25_TOP_K = int(os.getenv("BM25_TOP_K", 20))
 RERANK_POOL_SIZE = int(os.getenv("RERANK_POOL_SIZE", 12))
 RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
 
-# Score mínimo do reranker pro melhor candidato; abaixo disso, reescreve a query e tenta de novo.
 RETRIEVAL_CONFIDENCE_THRESHOLD = float(os.getenv("RETRIEVAL_CONFIDENCE_THRESHOLD", 0.1))
 
-# CAG (Cache-Augmented Generation): cache.json pré-construído com fatos/perguntas estáveis do
-# relatório. Em hit, pula embedding denso + BM25 + rerank e responde com contexto reduzido.
 CACHE_PATH = BASE_DIR / "data" / "processed" / "cache.json"
 CACHE_SIMILARITY_THRESHOLD = float(os.getenv("CACHE_SIMILARITY_THRESHOLD", 0.85))
 CACHE_BUILD_BATCH_SIZE = int(os.getenv("CACHE_BUILD_BATCH_SIZE", 8))
+
+ARIZE_SPACE_ID = os.getenv("ARIZE_SPACE_ID", "")
+ARIZE_API_KEY = os.getenv("ARIZE_API_KEY", "")
+ARIZE_PROJECT_NAME = os.getenv("ARIZE_PROJECT_NAME", "rag-financeiro")
