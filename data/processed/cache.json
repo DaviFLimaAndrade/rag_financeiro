@@ -1,0 +1,432 @@
+{
+  "built_at": "2026-09-03T17:45:18.479219+00:00",
+  "provider": "notebooklm",
+  "entries": [
+    {
+      "question": "Qual é o nome da publicação semestral do Banco Central do Brasil?",
+      "answer": "A publicação semestral do Banco Central do Brasil é o Relatório de Estabilidade Financeira (REF).",
+      "page_no": "1, 4",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual é o volume e número desta edição do Relatório de Estabilidade Financeira?",
+      "answer": "Esta edição é o Volume 23, Número 2.",
+      "page_no": "1",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual é a data de publicação desta edição do Relatório de Estabilidade Financeira?",
+      "answer": "A data de publicação é Novembro de 2024.",
+      "page_no": "1",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual é o ISSN do Relatório de Estabilidade Financeira?",
+      "answer": "O ISSN é 2176-8102.",
+      "page_no": "1",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual é a frequência de publicação do Relatório de Estabilidade Financeira?",
+      "answer": "O Relatório de Estabilidade Financeira é uma publicação semestral.",
+      "page_no": "1, 4",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "O que o Banco Central do Brasil define como estabilidade financeira?",
+      "answer": "O Banco Central do Brasil define estabilidade financeira como a manutenção, ao longo do tempo e em qualquer cenário econômico, do regular funcionamento do sistema de intermediação financeira entre famílias, empresas e governo.",
+      "page_no": "5",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quantos capítulos o Relatório de Estabilidade Financeira possui?",
+      "answer": "O Relatório de Estabilidade Financeira é constituído por dois capítulos.",
+      "page_no": "5",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Onde pode ser encontrado o Anexo Estatístico do Relatório de Estabilidade Financeira?",
+      "answer": "O Anexo Estatístico pode ser encontrado no endereço eletrônico https://www.bcb.gov.br/publicacoes/ref.",
+      "page_no": "6",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Onde séries temporais importantes para o acompanhamento da estabilidade financeira estão disponíveis?",
+      "answer": "Séries temporais importantes estão disponíveis no Sistema Gerenciador de Séries Temporais (SGS), em https://www3.bcb.gov.br/sgspub.",
+      "page_no": "6",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual é a data de publicação da Ata do Comitê de Política Monetária (Copom) mencionada no relatório?",
+      "answer": "A Ata do Comitê de Política Monetária (Copom) foi publicada em 24 de setembro de 2024.",
+      "page_no": "7",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quais seções do relatório analisam o sistema bancário (conglomerados de bancos comerciais, múltiplos, caixas econômicas, câmbio ou investimento)?",
+      "answer": "As seções de Liquidez e Rentabilidade e a subseção Teste de estresse de liquidez analisam o sistema bancário.",
+      "page_no": "46",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quais seções do relatório analisam todos os segmentos do SFN, incluindo conglomerados não bancários?",
+      "answer": "As seções de Crédito e Solvência analisam todos os segmentos do SFN, incluindo os conglomerados não bancários.",
+      "page_no": "46",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o valor do Adicional Contracíclico de Capital Principal relativo ao Brasil (ACCPBrasil) decidido pelo Comef?",
+      "answer": "O Comef decidiu manter o Adicional Contracíclico de Capital Principal relativo ao Brasil (ACCPBrasil) em 0% (zero por cento).",
+      "page_no": "23",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Em quais datas o Comef realizou as 57ª e 58ª reuniões ordinárias?",
+      "answer": "As 57ª e 58ª reuniões ordinárias do Comef ocorreram em 28 e 29 de maio, e 27 e 28 de agosto de 2024, respectivamente.",
+      "page_no": "23",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quanto tempo após as deliberações do Comef os aumentos do ACCPBrasil entram em vigor?",
+      "answer": "Os aumentos do ACCPBrasil entram em vigor somente um ano após as deliberações do Comef.",
+      "page_no": "26",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que resolução do CMN, de 1º de fevereiro de 2024, promoveu ajustes nos lastros elegíveis e nos prazos de vencimento da LCA, LCI e LIG?",
+      "answer": "A Resolução CMN 5.119, de 1º de fevereiro de 2024.",
+      "page_no": "48",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que resolução do CMN, de 21 de dezembro de 2023, visou desincentivar o uso da garantia do FGC como principal atrativo para captação de recursos?",
+      "answer": "A Resolução CMN 5.114, de 21 de dezembro de 2023.",
+      "page_no": "57",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que resolução do CMN, de 30 de novembro de 2017, introduziu o NSFR no Brasil?",
+      "answer": "A Resolução CMN 4.616, de 30 de novembro de 2017.",
+      "page_no": "64",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que circular do BC, de 19 de dezembro de 2017, estabelece a metodologia do NSFR?",
+      "answer": "A Circular 3.869, de 19 de dezembro de 2017.",
+      "page_no": "64",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quando o NSFR começou a produzir seus efeitos no Brasil?",
+      "answer": "O NSFR iniciou seus efeitos a partir de 1º de outubro de 2018.",
+      "page_no": "64",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o requerimento mínimo regulamentar do NSFR para as IFs enquadradas no segmento S1?",
+      "answer": "As IFs enquadradas no segmento S1 necessitam cumprir o requerimento mínimo regulamentar de 100%.",
+      "page_no": "64",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o total das exposições diretas e indiretas de crédito das IFs devido às enchentes no RS?",
+      "answer": "O total das exposições diretas e indiretas foi de cerca de R$53 bilhões.",
+      "page_no": "226",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual foi a necessidade de capital estimada para reenquadrar as IFs com índice de capital inferior ao regulamentar devido às enchentes no RS?",
+      "answer": "A necessidade de capital foi de R$8 bilhões.",
+      "page_no": "226",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que percentual do Patrimônio de Referência (PR) do sistema essa necessidade de capital para as enchentes no RS representa?",
+      "answer": "Essa necessidade de capital representa 0,6% do PR do sistema.",
+      "page_no": "226",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "O que significa o risco climático de transição?",
+      "answer": "O risco climático de transição refere-se à possível ocorrência de perdas para IFs devido a alterações regulatórias, mudanças de padrões de consumo ou alterações tecnológicas associados à transição para uma economia de baixo carbono.",
+      "page_no": "229",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual a exposição da carteira de crédito do SFN aos setores classificados com risco de transição alto e médio, conforme o REF de novembro de 2022?",
+      "answer": "A exposição foi estimada em 8%.",
+      "page_no": "229",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quais são os dois cenários de elevação gradual dos custos de emissões simulados no modelo CGE para o risco climático, e quais valores atingem em 2030?",
+      "answer": "Os cenários são Cenário de Transição 1 (USD50/tCO2e) e Cenário de Transição 2 (USD100/tCO2e), atingindo esses valores em 2030.",
+      "page_no": "233-234, 245",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Em que período o modelo de risco de crédito para estimar o risco climático de transição foi estimado?",
+      "answer": "O modelo de risco de crédito foi estimado para o período de 2012 a 2021.",
+      "page_no": "246",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quando as novas regras contábeis para mensurar, registrar e divulgar instrumentos financeiros entrarão em vigor?",
+      "answer": "As novas regras contábeis entrarão em vigor em 1º de janeiro de 2025.",
+      "page_no": "21, 249, 250",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Com quais padrões contábeis internacionais as novas regras contábeis estão alinhadas?",
+      "answer": "As novas regras estão alinhadas com os pronunciamentos contábeis International Financial Reporting Standard (IFRS 9) Financial Instruments e IFRS 7 Financial Instruments: Disclosures.",
+      "page_no": "251",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o aumento agregado estimado nas provisões devido às novas regras contábeis?",
+      "answer": "As entidades pesquisadas estimam um aumento agregado de R$37,8 bilhões nas provisões.",
+      "page_no": "21, 249, 258",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que percentual das provisões atuais representa o aumento estimado devido às novas regras contábeis?",
+      "answer": "Esse montante representa 10,7% das provisões atuais.",
+      "page_no": "21, 249, 258",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "As novas regras contábeis impactarão o resultado ou o capital das IFs?",
+      "answer": "O aumento das provisões afetará o capital, mas não o resultado das entidades.",
+      "page_no": "21, 258",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que parte do SFN foi pesquisada pelo BC para avaliar o impacto das novas regras contábeis?",
+      "answer": "O BC pesquisou entidades responsáveis por cerca de 84% das exposições de crédito do SFN.",
+      "page_no": "21, 249",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que tipo de ativos financeiros devem ter provisões para perdas incorridas se houver atraso superior a noventa dias ou se a contraparte for PJ em processo falimentar?",
+      "answer": "Ativos financeiros com atraso superior a noventa dias e aqueles cuja contraparte seja PJ em processo falimentar.",
+      "page_no": "254",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que novos instrumentos financeiros serão sujeitos à provisão para perdas esperadas pelas novas regras contábeis?",
+      "answer": "Compromissos de crédito não canceláveis, créditos a liberar e ativos financeiros em geral, incluindo debêntures e demais títulos privados.",
+      "page_no": "256",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual a margem de capital que o sistema bancário dispõe para expandir a oferta de crédito?",
+      "answer": "O sistema possui margem de capital de R$486 bilhões.",
+      "page_no": "142",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que percentual do PR agregado do sistema essa margem de capital representa?",
+      "answer": "Essa margem de capital equivale a 32% de seu PR agregado.",
+      "page_no": "142",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Em quais anos a implantação dos novos procedimentos para cálculo do RWAOPAD se dará de forma faseada?",
+      "answer": "A implantação se dará de forma faseada entre 2025 e 2028.",
+      "page_no": "139",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que porcentagem dos ativos totais do sistema bancário as entidades com ROE acima de 10% representavam ao final do primeiro semestre de 2024?",
+      "answer": "As entidades com ROE acima de 10% representavam mais de 75% do total de ativos do sistema bancário.",
+      "page_no": "122",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o montante total de pagamentos de coberturas pelo Proagro para as enchentes no RS até setembro de 2024?",
+      "answer": "O montante total foi de R$450 milhões.",
+      "page_no": "209",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual foi o valor pago pelo Proagro em 2022 e 2023 devido às secas na agropecuária gaúcha?",
+      "answer": "Foram pagos R$6,4 bilhões em 2022 e R$10,5 bilhões em 2023.",
+      "page_no": "209",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que resoluções do CMN e do BCB, de 13 de maio de 2024, permitiram reestruturar operações de crédito sem classificá-las como AP devido às enchentes no RS?",
+      "answer": "As Resolução CMN 5.133 e Resolução BCB 378, ambas de 13 de maio de 2024.",
+      "page_no": "215",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Em qual período as reestruturações de operações de crédito, devido às enchentes no RS, não devem ser caracterizadas como AP?",
+      "answer": "As reestruturações realizadas entre 1º de maio e 31 de dezembro de 2024.",
+      "page_no": "215",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que resolução do BCB, de 13 de maio de 2024, concedeu a dedução da exigibilidade do recolhimento compulsório sobre recursos de depósitos de poupança devido às enchentes no RS?",
+      "answer": "A Resolução BCB 379, de 13 de maio de 2024.",
+      "page_no": "219",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o valor liberado no compulsório sobre depósitos de poupança livre e rural para as IFs que utilizaram a prerrogativa da Resolução BCB 379 entre 9 e 13 de setembro de 2024?",
+      "answer": "Foi liberado R$2,6 bilhões no compulsório sobre poupança livre e R$6,3 bilhões no compulsório sobre poupança rural.",
+      "page_no": "219",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que resolução do BCB, de 15 de maio de 2024, estendeu o prazo para envio de documentos contábeis devido às enchentes no RS?",
+      "answer": "A Resolução BCB 380, de 15 de maio de 2024.",
+      "page_no": "219",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Para quais datas-base a Resolução BCB 380 se aplica na extensão do prazo para documentos contábeis?",
+      "answer": "Aplica-se aos documentos relativos às datas-base de abril a junho de 2024.",
+      "page_no": "219",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Que resolução do BCB, de 15 de maio de 2024, flexibilizou regras para administradoras de consórcio devido às enchentes no RS?",
+      "answer": "A Resolução BCB 381, de 15 de maio de 2024.",
+      "page_no": "220",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Até quando a flexibilização para administradoras de consórcio, devido às enchentes no RS, é permitida?",
+      "answer": "Até 31 de dezembro de 2024.",
+      "page_no": "220",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "O que o Comitê de Supervisão Bancária de Basileia (BCBS) define como Índice de Basileia (IB)?",
+      "answer": "O Índice de Basileia (IB) consiste na divisão do Patrimônio de Referência (PR) pelo Risk-Weighted Asset (RWA).",
+      "page_no": "290",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o valor padrão do fator de requerimento mínimo de PR em relação ao RWA para instituições dos Segmentos S1 a S4?",
+      "answer": "O valor padrão do fator é de 8%.",
+      "page_no": "290",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o requerimento mínimo de Capital de Nível I (IPR1)?",
+      "answer": "O requerimento mínimo de Capital de Nível I é de 6% do RWA.",
+      "page_no": "292",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o requerimento mínimo de Capital Principal (ICP)?",
+      "answer": "O requerimento mínimo de Capital Principal é de 4,5% do RWA.",
+      "page_no": "293",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quais são as parcelas que compõem o Adicional de Capital Principal (ACP)?",
+      "answer": "O ACP corresponde à soma das parcelas Adicional de Capital Principal Conservação (ACP Conservação), Adicional de Capital Principal Contracíclico (ACPContracíclico) e Adicional de Capital Principal Sistêmico (ACPSistêmico).",
+      "page_no": "293",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o valor da parcela ACP Conservação?",
+      "answer": "O valor da parcela ACP Conservação corresponde a 2,5% do RWA.",
+      "page_no": "293",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o valor atual do ACP Contracíclico para exposições no Brasil?",
+      "answer": "O valor da parcela ACP Contracíclico é atualmente zero para exposições no Brasil.",
+      "page_no": "294",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o valor da parcela ACP Sistêmico para as instituições enquadradas no S1?",
+      "answer": "A parcela ACP Sistêmico é atualmente igual a 1% do RWA para as instituições enquadradas no S1.",
+      "page_no": "294",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o requerimento mínimo da Razão de Alavancagem (RA)?",
+      "answer": "O requerimento mínimo para a Razão de Alavancagem é de 3,0%.",
+      "page_no": "296",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Desde quando o requerimento mínimo da Razão de Alavancagem (RA) está em vigor?",
+      "answer": "O requerimento mínimo da RA está em vigor desde janeiro de 2018.",
+      "page_no": "297",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "O que o Índice de Liquidez (IL) relaciona?",
+      "answer": "O IL relaciona o volume de ativos líquidos detidos pela instituição com o fluxo de caixa estressado (estimativa de desembolsos nos 30 dias úteis subsequentes em cenário de estresse).",
+      "page_no": "297",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quais são os principais componentes dos ativos líquidos no cálculo do IL?",
+      "answer": "Os ativos líquidos são o somatório dos ativos de alta liquidez, liberação de compulsório e recursos suplementares.",
+      "page_no": "298",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "O que o Índice de Liquidez Estrutural (ILE) mede?",
+      "answer": "O ILE mede se os bancos possuem fontes suficientes de recursos estáveis (numerador) para financiar seus ativos de longo prazo (denominador).",
+      "page_no": "65, 303",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "O que o indicador Loan-to-deposit ratio (LTD) mensura?",
+      "answer": "O indicador LTD mensura a razão entre os empréstimos concedidos pelas IFs e o volume de depósitos de seus clientes.",
+      "page_no": "306",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Quais são as variáveis macroeconômicas utilizadas nos cenários do teste de estresse macroeconômico?",
+      "answer": "As variáveis são: atividade econômica (PIB), taxa de câmbio do dólar americano, taxa de juros (Selic), inflação (IPCA) e taxa de desemprego.",
+      "page_no": "316-317",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual o volume de transações do Sistema de Pagamentos Instantâneos (SPI) em um único dia?",
+      "answer": "O Sistema de Pagamentos Instantâneos (SPI) chegou a processar 206 milhões de transações em um único dia.",
+      "page_no": "192",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual a disponibilidade do SPI durante todo o período analisado?",
+      "answer": "O SPI manteve 100% de disponibilidade.",
+      "page_no": "194",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Em quanto tempo 99% das transações do SPI foram processadas?",
+      "answer": "99% das transações cursaram no SPI em até 0,87 segundos.",
+      "page_no": "194",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual a porcentagem de crescimento semestral do volume de transações Pix?",
+      "answer": "O crescimento semestral do volume de transações Pix foi de 8,27%.",
+      "page_no": "194",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Qual é o nível de confiança do modelo de margem inicial das Câmaras B3 e de Câmbio B3?",
+      "answer": "O nível de confiança é superior a 99%.",
+      "page_no": "195",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    },
+    {
+      "question": "Em que período o Banco Central do Brasil realiza sua pesquisa trimestral de estabilidade financeira (PEF)?",
+      "answer": "A pesquisa ocorre em dois levantamentos, nos períodos de 22 de abril a 2 de maio e de 29 de julho a 12 de agosto de 2024.",
+      "page_no": "172",
+      "source": "relatorio_estabilidade_bcb.pdf"
+    }
+  ]
+}
