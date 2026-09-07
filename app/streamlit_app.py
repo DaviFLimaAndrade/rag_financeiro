@@ -10,6 +10,7 @@ setup_tracing()
 from rag_financeiro import config
 from rag_financeiro.vector_store import chroma_store
 from rag_financeiro.embeddings import local_embedder
+from rag_financeiro.ingestion.pipeline import ingest_all
 from rag_financeiro.retrieval import reranker
 from rag_financeiro.cache import matcher as cache_matcher
 from rag_financeiro.generation.rag_chain import answer_question
@@ -64,6 +65,9 @@ def _warmup_models():
     local_embedder.warmup()
     reranker.warmup()
     cache_matcher.warmup()
+    if chroma_store.count() == 0:
+        with st.spinner("Índice vazio — processando o relatório pela primeira vez..."):
+            ingest_all()
     if config.GROQ_API_KEY:
         get_llm(provider="groq")
     return True
