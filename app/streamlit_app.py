@@ -64,8 +64,10 @@ def _warmup_models():
     local_embedder.warmup()
     reranker.warmup()
     cache_matcher.warmup()
-    if config.GROQ_API_KEY:
-        get_llm(provider="groq")
+    try:
+        get_llm(provider=config.LLM_PROVIDER)
+    except RuntimeError:
+        pass
     return True
 
 
@@ -75,7 +77,7 @@ st.session_state.setdefault("conversations", {})
 st.session_state.setdefault("conv_order", [])
 st.session_state.setdefault("current_conv_id", None)
 
-provider = "groq"
+provider = config.LLM_PROVIDER
 
 with st.sidebar:
     st.title(":material/monitoring: RAG Financeiro")
@@ -196,12 +198,20 @@ if question:
         conversation["last_error"] = None
         elapsed = time.time() - start
 
+        actual_provider = response.get("provider_used") or provider
+        if actual_provider != provider:
+            st.info(
+                f"{current_provider_label(provider)} indisponível no momento — resposta gerada "
+                f"via {current_provider_label(actual_provider)}.",
+                icon=":material/swap_horiz:",
+            )
+
         def stream_answer(text):
             for word in text.split(" "):
                 yield word + " "
 
         st.write_stream(stream_answer(response["answer"]))
-        st.caption(f":material/schedule: {elapsed:.1f}s • modelo: {current_provider_label(provider)}")
+        st.caption(f":material/schedule: {elapsed:.1f}s • modelo: {current_provider_label(actual_provider)}")
 
         if response["sources"]:
             with st.expander("Fontes", icon=":material/menu_book:"):

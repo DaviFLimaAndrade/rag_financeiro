@@ -4,6 +4,7 @@ docling
 langchain-huggingface
 langchain-groq
 langchain-google-genai
+langchain-openai
 langchain-core
 langgraph
 sentence-transformers
