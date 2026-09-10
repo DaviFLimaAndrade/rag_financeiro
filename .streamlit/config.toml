@@ -1,0 +1,81 @@
+# Lastro — tema institucional
+# Verde profundo sobre neutros frios, títulos em serifa: sóbrio, legível,
+# com a cara de documento oficial que o Relatório de Estabilidade Financeira tem.
+
+[theme]
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "'Source Serif 4':https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+
+baseFontSize = 15
+baseFontWeight = 400
+codeFontSize = "13px"
+headingFontSizes = ["30px", "23px", "19px", "16px", "14px", "13px"]
+headingFontWeights = [600, 600, 600, 600, 500, 500]
+linkUnderline = false
+
+baseRadius = "6px"
+buttonRadius = "6px"
+showWidgetBorder = true
+showSidebarBorder = true
+
+# Só aceito no [theme] raiz, não por modo — tons médios pra ler nos dois temas.
+chartCategoricalColors = ["#0E8A66", "#3E7EA8", "#B8823C", "#7B6CC4", "#CC5A50", "#78908A", "#5EC4A8"]
+
+[theme.light]
+primaryColor = "#046B4E"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F6F4"
+codeBackgroundColor = "#F2F6F4"
+textColor = "#101F1A"
+linkColor = "#046B4E"
+borderColor = "#DBE5E0"
+codeTextColor = "#0F3D30"
+dataframeBorderColor = "#DBE5E0"
+dataframeHeaderBackgroundColor = "#F2F6F4"
+
+greenColor = "#046B4E"
+blueColor = "#1D5C82"
+redColor = "#B3261E"
+orangeColor = "#9A5B12"
+yellowColor = "#8A6D0B"
+violetColor = "#5B4A9E"
+grayColor = "#5D6B66"
+
+
+[theme.light.sidebar]
+backgroundColor = "#F7FAF8"
+secondaryBackgroundColor = "#EAF1ED"
+codeBackgroundColor = "#EAF1ED"
+textColor = "#101F1A"
+borderColor = "#DBE5E0"
+primaryColor = "#046B4E"
+
+[theme.dark]
+primaryColor = "#0E8A66"
+backgroundColor = "#0C1411"
+secondaryBackgroundColor = "#15211C"
+codeBackgroundColor = "#15211C"
+textColor = "#E4EDE9"
+linkColor = "#5EEAD4"
+borderColor = "#243A32"
+codeTextColor = "#B9CFC7"
+dataframeBorderColor = "#243A32"
+dataframeHeaderBackgroundColor = "#15211C"
+
+greenColor = "#34D399"
+blueColor = "#7DB8E8"
+redColor = "#F0857D"
+orangeColor = "#E0A26A"
+yellowColor = "#D9BC63"
+violetColor = "#A79BE0"
+grayColor = "#93A5A0"
+
+
+[theme.dark.sidebar]
+backgroundColor = "#080E0C"
+secondaryBackgroundColor = "#15211C"
+codeBackgroundColor = "#15211C"
+textColor = "#E4EDE9"
+borderColor = "#243A32"
+primaryColor = "#0E8A66"

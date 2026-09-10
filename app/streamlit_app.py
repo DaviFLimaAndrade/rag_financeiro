@@ -20,7 +20,34 @@ from rag_financeiro.generation.llm_provider import (
     LLMTimeoutError,
 )
 
-st.set_page_config(page_title="RAG Financeiro — BCB", page_icon=":material/monitoring:")
+APP_NAME = "Lastro"
+APP_TAGLINE = "Relatório de Estabilidade Financeira — Banco Central do Brasil"
+APP_ICON = ":material/account_balance:"
+
+st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON)
+
+# Único CSS do app. Sem ele, um título de conversa longo empurra o botão de
+# excluir pra fora da linha e quebra o layout da sidebar — Streamlit não tem
+# truncamento nativo de label de botão. Cores e fontes ficam em config.toml.
+st.html(
+    """
+    <style>
+      [class*="st-key-convrow_"],
+      [class*="st-key-convrow_"] [data-testid="stHorizontalBlock"] { flex-wrap: nowrap; }
+      [class*="st-key-convbtn_"] { min-width: 0; flex: 1 1 auto; }
+      [class*="st-key-convbtn_"] button { width: 100%; min-width: 0; }
+      [class*="st-key-convbtn_"] button p {
+        display: block;
+        width: 100%;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      [class*="st-key-convdel_"] { flex: 0 0 auto; }
+    </style>
+    """
+)
 
 ERROR_MESSAGES = {
     "quota": "O provedor {provider} está sem cota disponível agora. Tente de novo em instantes.",
@@ -33,12 +60,26 @@ ERROR_ICONS = {
     "unknown": ":material/error:",
 }
 
-TITLE_MAX_LEN = 40
+# Quanto do título cabe no botão da sidebar, e quanto guardamos pro tooltip.
+TITLE_MAX_LEN = 32
+TITLE_STORE_LEN = 120
+
 SUGESTOES = [
-    "Qual o risco de crédito atual?",
-    "Resumo do último relatório",
-    "Principais riscos sistêmicos",
+    (":material/credit_score:", "Qual o risco de crédito atual?"),
+    (":material/summarize:", "Resumo do último relatório"),
+    (":material/warning:", "Principais riscos sistêmicos"),
 ]
+
+
+def _make_title(question: str) -> str:
+    """Título da conversa: uma linha só, sem quebras que estourem o botão."""
+    return " ".join(question.split())[:TITLE_STORE_LEN]
+
+
+def _short_title(title: str) -> str:
+    if len(title) <= TITLE_MAX_LEN:
+        return title
+    return title[: TITLE_MAX_LEN - 1].rstrip() + "…"
 
 
 def _create_conversation(title: str) -> dict:
@@ -57,6 +98,19 @@ def _delete_conversation(conv_id: str) -> None:
         st.session_state.current_conv_id = (
             st.session_state.conv_order[0] if st.session_state.conv_order else None
         )
+
+
+def _assistant_message():
+    return st.chat_message("assistant", avatar=APP_ICON)
+
+
+def _render_sources(sources: list) -> None:
+    if not sources:
+        return
+    with st.expander(f"Fontes ({len(sources)})", icon=":material/menu_book:"):
+        for s in sources:
+            secao = s["section"] or "sem seção"
+            st.markdown(f"- **{s['source']}**, p. {s['page_no']} — :gray[{secao}]")
 
 
 @st.cache_resource(show_spinner="Carregando modelos locais...")
@@ -78,34 +132,58 @@ st.session_state.setdefault("conv_order", [])
 st.session_state.setdefault("current_conv_id", None)
 
 provider = config.LLM_PROVIDER
+doc_count = chroma_store.count()
 
 with st.sidebar:
-    st.title(":material/monitoring: RAG Financeiro")
-    st.caption("Relatório de Estabilidade Financeira — BCB")
-    st.caption(f"Modelo: {current_provider_label(provider)}")
-    st.metric("Documentos indexados", chroma_store.count())
+    st.title(APP_NAME)
+    st.caption(APP_TAGLINE)
+
+    with st.container(horizontal=True, gap="small"):
+        st.badge(
+            f"{doc_count} trechos",
+            icon=":material/library_books:",
+            color="gray",
+            help="Trechos do relatório indexados no banco vetorial",
+        )
+        st.badge(
+            current_provider_label(provider),
+            icon=":material/neurology:",
+            color="green",
+            help="Modelo de linguagem em uso",
+        )
 
     st.subheader("Conversas")
     if st.button("Nova conversa", icon=":material/add:", width="stretch", type="primary"):
         st.session_state.current_conv_id = None
         st.rerun()
 
+    if not st.session_state.conv_order:
+        st.caption("Suas conversas aparecem aqui.")
+
     for conv_id in st.session_state.conv_order:
         conv = st.session_state.conversations[conv_id]
-        with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+        label = _short_title(conv["title"])
+        with st.container(
+            horizontal=True,
+            vertical_alignment="center",
+            gap="small",
+            key=f"convrow_{conv_id}",
+        ):
             if st.button(
-                conv["title"],
-                key=f"conv_{conv_id}",
+                label,
+                key=f"convbtn_{conv_id}",
                 width="stretch",
-                type="primary" if conv_id == st.session_state.current_conv_id else "tertiary",
+                type="secondary" if conv_id == st.session_state.current_conv_id else "tertiary",
+                help=conv["title"] if label != conv["title"] else None,
             ):
                 st.session_state.current_conv_id = conv_id
                 st.rerun()
             if st.button(
                 "",
                 icon=":material/delete:",
-                key=f"del_{conv_id}",
+                key=f"convdel_{conv_id}",
                 width="content",
+                type="tertiary",
                 help="Excluir conversa",
             ):
                 _delete_conversation(conv_id)
@@ -114,7 +192,7 @@ with st.sidebar:
 conversation = st.session_state.conversations.get(st.session_state.current_conv_id)
 messages = conversation["messages"] if conversation else []
 
-if chroma_store.count() == 0:
+if doc_count == 0:
     st.warning(
         "O índice vetorial está vazio. Rode `python scripts/ingest.py` antes de fazer perguntas.",
         icon=":material/warning:",
@@ -122,36 +200,41 @@ if chroma_store.count() == 0:
     st.stop()
 
 for message in messages:
-    with st.chat_message(message["role"]):
+    avatar = APP_ICON if message["role"] == "assistant" else None
+    with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
-        if message["role"] == "assistant" and message.get("sources"):
-            with st.expander("Fontes", icon=":material/menu_book:"):
-                for s in message["sources"]:
-                    st.markdown(
-                        f"- **{s['source']}**, p.{s['page_no']} — {s['section'] or 'sem seção'}"
-                    )
+        if message["role"] == "assistant":
+            _render_sources(message.get("sources") or [])
 
 question = None
 is_retry = False
 
 if conversation and conversation.get("last_error"):
     err = conversation["last_error"]
-    with st.chat_message("assistant"):
+    with _assistant_message():
         st.error(err["message"], icon=err.get("icon", ":material/error:"))
         if st.button("Tentar novamente", icon=":material/refresh:"):
             question = err["question"]
             is_retry = True
             conversation["last_error"] = None
 
+# As sugestões vivem num slot próprio para poderem sumir no mesmo run em que a
+# pergunta é enviada. Antes elas continuavam na tela depois de uma pergunta
+# digitada, e o clique seguinte caía num run que já não as renderizava — o
+# botão simplesmente desaparecia sem responder nada.
+suggestions_slot = st.empty()
+
 if not messages and not question:
-    selected = st.pills(
-        "Sugestões",
-        SUGESTOES,
-        label_visibility="collapsed",
-        key="suggestion_pills",
-    )
-    if selected:
-        question = selected
+    with suggestions_slot.container():
+        st.header("Sobre o que você quer saber?")
+        st.caption(
+            "As respostas saem do Relatório de Estabilidade Financeira, com página "
+            "e seção citadas."
+        )
+        with st.container(horizontal=True, gap="small"):
+            for i, (icon, sugestao) in enumerate(SUGESTOES):
+                if st.button(sugestao, icon=icon, key=f"sug_{i}"):
+                    question = sugestao
 
 chat_input = st.chat_input("Pergunte algo sobre o relatório de estabilidade financeira...")
 if chat_input:
@@ -159,17 +242,16 @@ if chat_input:
     is_retry = False
 
 if question:
+    suggestions_slot.empty()
+
     if not is_retry:
         if conversation is None:
-            title = (
-                question if len(question) <= TITLE_MAX_LEN else question[: TITLE_MAX_LEN - 1] + "…"
-            )
-            conversation = _create_conversation(title)
+            conversation = _create_conversation(_make_title(question))
         conversation["messages"].append({"role": "user", "content": question})
         with st.chat_message("user"):
             st.markdown(question)
 
-    with st.chat_message("assistant"):
+    with _assistant_message():
         start = time.time()
         max_history_messages = config.MAX_HISTORY_TURNS * 2
         history = [
@@ -211,14 +293,11 @@ if question:
                 yield word + " "
 
         st.write_stream(stream_answer(response["answer"]))
-        st.caption(f":material/schedule: {elapsed:.1f}s • modelo: {current_provider_label(actual_provider)}")
+        st.caption(
+            f":material/schedule: {elapsed:.1f}s • modelo: {current_provider_label(actual_provider)}"
+        )
 
-        if response["sources"]:
-            with st.expander("Fontes", icon=":material/menu_book:"):
-                for s in response["sources"]:
-                    st.markdown(
-                        f"- **{s['source']}**, p.{s['page_no']} — {s['section'] or 'sem seção'}"
-                    )
+        _render_sources(response["sources"])
 
     conversation["messages"].append(
         {

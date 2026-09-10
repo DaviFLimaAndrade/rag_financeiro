@@ -1,9 +1,11 @@
-# RAG Financeiro — Relatório de Estabilidade Financeira (BCB)
+# Lastro — Relatório de Estabilidade Financeira (BCB)
 
 [![RAG Eval](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DaviFLimaAndrade/rag_financeiro/main/eval_badge.json)](.github/workflows/eval.yml)
 
 Sistema de RAG (Retrieval-Augmented Generation) em português para consultar o Relatório de
 Estabilidade Financeira do Banco Central do Brasil (`data/raw/relatorio_estabilidade_bcb.pdf`).
+
+Toda resposta sai com a página e a seção do relatório que a sustentam — daí o nome.
 
 ## Arquitetura
 

@@ -43,6 +43,7 @@ env/
 # Streamlit
 .streamlit/*
 !.streamlit/secrets.toml.example
+!.streamlit/config.toml
 .streamlit_client/
 
 # Jupyter
