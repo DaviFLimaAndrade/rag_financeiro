@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
   "label": "RAG eval (LLM-as-judge)",
-  "message": "4.0/5 · 75% aprovação · 59% key-fact recall",
-  "color": "green"
+  "message": "2.9/5 · 50% aprovação · 48% key-fact recall",
+  "color": "orange"
 }
