@@ -21,14 +21,11 @@ from rag_financeiro.generation.llm_provider import (
 )
 
 APP_NAME = "Lastro"
-APP_TAGLINE = "Relatório de Estabilidade Financeira — Banco Central do Brasil"
+APP_TAGLINE = "Relatórios, atas do Copom e educação financeira — Banco Central do Brasil"
 APP_ICON = ":material/account_balance:"
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON)
 
-# Único CSS do app. Sem ele, um título de conversa longo empurra o botão de
-# excluir pra fora da linha e quebra o layout da sidebar — Streamlit não tem
-# truncamento nativo de label de botão. Cores e fontes ficam em config.toml.
 st.html(
     """
     <style>
@@ -60,18 +57,14 @@ ERROR_ICONS = {
     "unknown": ":material/error:",
 }
 
-# Quanto do título cabe no botão da sidebar, e quanto guardamos pro tooltip.
 TITLE_MAX_LEN = 32
 TITLE_STORE_LEN = 120
 
-# Escolhidas por score de retrieval medido, não por intuição: "Resumo do último
-# relatório" (0.013) e "Qual o risco de crédito atual?" (0.002) recuperavam ruído
-# e o modelo respondia que não tinha encontrado nada. A primeira daqui bate no
-# cache CAG e responde na hora.
 SUGESTOES = [
-    (":material/balance:", "O que o Banco Central define como estabilidade financeira?"),
-    (":material/warning:", "Principais riscos sistêmicos"),
-    (":material/health_and_safety:", "Como está a solvência dos bancos?"),
+    (":material/percent:", "Para quanto o Copom levou a taxa Selic?"),
+    (":material/savings:", "Qual a diferença entre juros simples e compostos?"),
+    (":material/payments:", "Como sair das dívidas?"),
+    (":material/warning:", "Quais os principais riscos ao sistema financeiro?"),
 ]
 
 
@@ -117,6 +110,27 @@ def _render_sources(sources: list) -> None:
             st.markdown(f"- **{s['source']}**, p. {s['page_no']} — :gray[{secao}]")
 
 
+def _render_followups(followups: list, key_prefix: str) -> None:
+    """Botões de continuação abaixo da resposta.
+
+    Clicar só agenda a pergunta e refaz o rerun: o fluxo de perguntar já roda mais abaixo no
+    script, e tentar respondê-la aqui duplicaria essa lógica.
+    """
+    if not followups:
+        return
+    st.caption("Continuar por aqui:")
+    with st.container(horizontal=True, gap="small"):
+        for i, followup in enumerate(followups):
+            if st.button(
+                followup,
+                key=f"followup_{key_prefix}_{i}",
+                type="tertiary",
+                icon=":material/arrow_forward:",
+            ):
+                st.session_state.pending_question = followup
+                st.rerun()
+
+
 @st.cache_resource(show_spinner="Carregando modelos locais...")
 def _warmup_models():
     local_embedder.warmup()
@@ -147,7 +161,7 @@ with st.sidebar:
             f"{doc_count} trechos",
             icon=":material/library_books:",
             color="gray",
-            help="Trechos do relatório indexados no banco vetorial",
+            help="Trechos dos documentos do BCB indexados no banco vetorial",
         )
         st.badge(
             current_provider_label(provider),
@@ -210,7 +224,7 @@ for message in messages:
         if message["role"] == "assistant":
             _render_sources(message.get("sources") or [])
 
-question = None
+question = st.session_state.pop("pending_question", None)
 is_retry = False
 
 if conversation and conversation.get("last_error"):
@@ -222,25 +236,22 @@ if conversation and conversation.get("last_error"):
             is_retry = True
             conversation["last_error"] = None
 
-# As sugestões vivem num slot próprio para poderem sumir no mesmo run em que a
-# pergunta é enviada. Antes elas continuavam na tela depois de uma pergunta
-# digitada, e o clique seguinte caía num run que já não as renderizava — o
-# botão simplesmente desaparecia sem responder nada.
 suggestions_slot = st.empty()
 
 if not messages and not question:
     with suggestions_slot.container():
         st.header("Sobre o que você quer saber?")
         st.caption(
-            "As respostas saem do Relatório de Estabilidade Financeira, com página "
-            "e seção citadas."
+            "As respostas saem de publicações do Banco Central — relatórios de estabilidade "
+            "financeira e de política monetária, atas do Copom e o Caderno de Educação "
+            "Financeira —, com página e seção citadas."
         )
         with st.container(horizontal=True, gap="small"):
             for i, (icon, sugestao) in enumerate(SUGESTOES):
                 if st.button(sugestao, icon=icon, key=f"sug_{i}"):
                     question = sugestao
 
-chat_input = st.chat_input("Pergunte algo sobre o relatório de estabilidade financeira...")
+chat_input = st.chat_input("Pergunte sobre juros, inflação, dívidas ou o sistema financeiro...")
 if chat_input:
     question = chat_input
     is_retry = False
@@ -263,7 +274,7 @@ if question:
             for m in conversation["messages"][:-1][-max_history_messages:]
         ]
         try:
-            with st.spinner("Consultando o relatório..."):
+            with st.spinner("Consultando os documentos..."):
                 response = answer_question(question, provider=provider, history=history)
         except LLMTimeoutError:
             msg = f"O provedor {current_provider_label(provider)} não respondeu a tempo. Tente de novo."
@@ -308,5 +319,13 @@ if question:
             "role": "assistant",
             "content": response["answer"],
             "sources": response["sources"],
+            "followups": response.get("followups") or [],
         }
     )
+
+# Depois de tudo: as sugestões pertencem à última resposta da conversa, seja ela a que acabou de
+# ser gerada ou a que já estava no histórico. Renderizar aqui (e não dentro do loop de mensagens)
+# garante que só existe um conjunto de botões na tela, sempre no fim.
+current = st.session_state.conversations.get(st.session_state.current_conv_id)
+if current and current["messages"] and current["messages"][-1]["role"] == "assistant":
+    _render_followups(current["messages"][-1].get("followups") or [], "last")

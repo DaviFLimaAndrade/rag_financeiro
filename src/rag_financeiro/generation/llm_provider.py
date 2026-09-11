@@ -122,8 +122,11 @@ def get_llm(provider: str | None = None, temperature: float = 0, purpose: str = 
         if not config.OPENROUTER_API_KEY:
             raise RuntimeError("OPENROUTER_API_KEY não configurada no .env")
         from langchain_openai import ChatOpenAI
+        model_name = (
+            config.OPENROUTER_JUDGE_MODEL if purpose == "judge" else config.OPENROUTER_MODEL
+        )
         llm = ChatOpenAI(
-            model=config.OPENROUTER_MODEL,
+            model=model_name,
             api_key=config.OPENROUTER_API_KEY,
             base_url="https://openrouter.ai/api/v1",
             temperature=temperature,
@@ -141,14 +144,15 @@ def get_llm(provider: str | None = None, temperature: float = 0, purpose: str = 
     return llm
 
 
-def current_provider_label(provider: str | None = None) -> str:
+def current_provider_label(provider: str | None = None, purpose: str = "generate") -> str:
     provider = provider or config.LLM_PROVIDER
     if provider == "groq":
         return f"Groq ({config.GROQ_MODEL})"
     if provider == "gemini":
         return f"Gemini ({config.GEMINI_MODEL})"
     if provider == "openrouter":
-        return f"OpenRouter ({config.OPENROUTER_MODEL})"
+        model = config.OPENROUTER_JUDGE_MODEL if purpose == "judge" else config.OPENROUTER_MODEL
+        return f"OpenRouter ({model})"
     return provider
 
 

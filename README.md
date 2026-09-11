@@ -1,11 +1,29 @@
-# Lastro — Relatório de Estabilidade Financeira (BCB)
+# Lastro — publicações do Banco Central (BCB)
 
 [![RAG Eval](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DaviFLimaAndrade/rag_financeiro/main/eval_badge.json)](.github/workflows/eval.yml)
 
-Sistema de RAG (Retrieval-Augmented Generation) em português para consultar o Relatório de
-Estabilidade Financeira do Banco Central do Brasil (`data/raw/relatorio_estabilidade_bcb.pdf`).
+Sistema de RAG (Retrieval-Augmented Generation) em português para consultar publicações do Banco
+Central do Brasil. Toda resposta sai com a página e a seção do documento que a sustentam — daí o
+nome.
 
-Toda resposta sai com a página e a seção do relatório que a sustentam — daí o nome.
+## Corpus (`data/raw/`)
+
+| Documento | Cobre |
+| --- | --- |
+| `relatorio_estabilidade_bcb.pdf` (REF, nov/2024) | Riscos e resiliência do SFN |
+| `bcb_relatorio_estabilidade_2026_05.pdf` (REF, mai/2026) | Idem, edição atual |
+| `bcb_relatorio_politica_monetaria_2026_06.pdf` (RPM, jun/2026) | Projeções de inflação, PIB e Selic |
+| `bcb_ata_copom_279.pdf` / `bcb_ata_copom_280.pdf` | Decisões de juros (jun e ago/2026) |
+| `bcb_caderno_educacao_financeira.pdf` | Orçamento, juros, dívidas — para quem sabe pouco de economia |
+
+Os relatórios do BCB são escritos para o mercado: um único REF não sustenta um Q&A aberto, porque
+a pergunta óbvia do leigo ("quanto está a Selic?") simplesmente não tem resposta no texto dele. O
+corpus mistura de propósito os três registros — conjuntura, decisão de juros e material didático —
+para que perguntas de níveis diferentes caiam em algum documento.
+
+Documentos de datas diferentes convivem no índice. O nome do arquivo carrega a data, vai nos
+metadados de cada chunk e entra no contexto do LLM, que é instruído a responder pelo mais recente e
+a dizer de quando é o dado.
 
 ## Arquitetura
 
@@ -25,6 +43,15 @@ PDF -> Docling (parsing/chunking table-aware) -> embeddings locais (bge-m3)
   fundidos por RRF e o pool combinado é reordenado por um cross-encoder (`BAAI/bge-reranker-base`).
   Se o score do melhor candidato fica abaixo de `RETRIEVAL_CONFIDENCE_THRESHOLD`, a query é
   reescrita e o retrieval tenta de novo uma vez antes de gerar a resposta.
+- **Expansão de vocabulário na query** (`retrieval/synonyms.py`): o usuário pergunta pela "Selic",
+  mas a ata do Copom escreve "reduzir a taxa básica de juros para 14,00% a.a." e nunca usa a
+  palavra na frase da decisão. Sem expandir, o BM25 não casa e o chunk certo não entra nem no pool
+  do reranker (medido: score 0,07 → o trecho da decisão ficava fora do top-8). Expandir a pergunta
+  com o vocabulário do BCB resolve sem reindexar nada — o mesmo trecho passa a 0,89.
+- **Sugestões de continuação**: cada resposta termina com três perguntas de follow-up, geradas no
+  mesmo request da resposta (nenhuma chamada extra ao LLM) e ancoradas nas seções que já estão no
+  contexto recuperado. Em caso de hit no cache, que não chama o LLM, as sugestões vêm das perguntas
+  vizinhas do próprio cache.
 - **Cache (CAG — Cache-Augmented Generation)**: um `cache.json` pré-construído guarda
   perguntas/fatos estáveis do relatório; em caso de hit, o pipeline pula embedding denso, BM25 e
   rerank, respondendo direto com o contexto reduzido.
@@ -69,14 +96,19 @@ de 1 a 5, com regras de calibração explícitas (ex.: uma recusa honesta quando
 no documento é sempre nota 2 — falha de retrieval — nunca é "perdoada" por ser honesta). O
 resultado é salvo em `eval_results.json` com nota média, taxa de aprovação e acurácia de fonte.
 
-O juiz (`JUDGE_PROVIDER`, padrão Gemini) é sempre um provider diferente do gerador (Groq) de
+O juiz (`JUDGE_PROVIDER`, padrão OpenRouter) é sempre um provider diferente do gerador (Groq) de
 propósito — um LLM avaliando a própria resposta (self-grading) tende a ser mais leniente consigo
-mesmo, o que inflaria a nota do badge. Rodar localmente requer `GEMINI_API_KEY` no `.env`; no CI
-(GitHub Actions), requer o secret `GEMINI_API_KEY` configurado no repositório (Settings → Secrets
-and variables → Actions), junto do `GROQ_API_KEY` já existente.
+mesmo, o que inflaria a nota do badge. Como o OpenRouter também é o fallback da geração, o modelo
+do juiz é pinado à parte em `OPENROUTER_JUDGE_MODEL` em vez de herdar `OPENROUTER_MODEL` — que é um
+alias de roteamento e poderia cair justamente no modelo que gerou a resposta. Rodar localmente
+requer `OPENROUTER_API_KEY` no `.env`; no CI (GitHub Actions), requer o secret `OPENROUTER_API_KEY`
+configurado no repositório (Settings → Secrets and variables → Actions), junto do `GROQ_API_KEY`
+já existente.
 
-Como o golden dataset não tem página/chunk esperado anotado (só um `expected_source`, sempre o
-mesmo — único PDF do corpus), a acurácia de retrieval também é medida por **key-fact recall**
+Como o golden dataset não tem página/chunk esperado anotado (só um `expected_source`, sempre
+`relatorio_estabilidade_bcb.pdf` — o dataset é anterior à entrada dos outros documentos no corpus e
+ainda não cobre RPM, atas nem o Caderno), a acurácia de retrieval também é medida por
+**key-fact recall**
 (`src/rag_financeiro/evaluation/metrics.py`): os trechos em `**negrito**` do `ground_truth` (os
 valores/fatos que a resposta precisa conter) são extraídos e verificados contra o texto dos chunks
 recuperados. É uma métrica aproximada — pode dar falso negativo se o PDF formata um número
@@ -85,7 +117,7 @@ nem gastar chamada de LLM extra.
 
 O badge no topo deste README reflete o resultado mais recente. Ele é atualizado automaticamente
 pelo workflow `.github/workflows/eval.yml` (GitHub Actions), que roda a avaliação (geração via
-Groq, julgamento via Gemini) a cada push no `main` que toque no pipeline do RAG, ou manualmente
+Groq, julgamento via OpenRouter) a cada push no `main` que toque no pipeline do RAG, ou manualmente
 pela aba Actions ("Run workflow").
 
 ## Experimento: chunking naive vs. table-aware

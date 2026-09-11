@@ -55,6 +55,9 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+# O corpus é versionado: sem os PDFs no repo, `scripts/ingest.py` não é reproduzível por quem
+# clona, e o índice Chroma commitado seria um binário sem origem verificável.
+!data/raw/*.pdf
 
 # Chroma vector store
 chroma_data/

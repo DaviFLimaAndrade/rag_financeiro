@@ -1,7 +1,7 @@
 from rag_financeiro import config
 from rag_financeiro.embeddings.local_embedder import embed_query
 from rag_financeiro.observability import tracer
-from rag_financeiro.retrieval import bm25_index, fusion, reranker
+from rag_financeiro.retrieval import bm25_index, fusion, reranker, synonyms
 from rag_financeiro.vector_store import chroma_store
 
 
@@ -25,6 +25,9 @@ def retrieve(query: str, k: int | None = None) -> list[dict]:
     with tracer.start_as_current_span("retrieve") as span:
         span.set_attribute("retrieval.query", query)
         span.set_attribute("retrieval.k", k)
+
+        query = synonyms.expand(query)
+        span.set_attribute("retrieval.expanded_query", query)
 
         dense_ids, dense_candidates = _dense_search(query, config.DENSE_TOP_K)
 

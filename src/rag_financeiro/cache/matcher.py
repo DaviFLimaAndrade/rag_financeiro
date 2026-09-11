@@ -51,4 +51,27 @@ def lookup(question: str) -> dict | None:
             return None
 
         span.set_attribute("cache.hit", True)
-        return {**entries[best_idx], "match_score": best_score}
+        return {
+            **entries[best_idx],
+            "match_score": best_score,
+            "related": _related(entries, scores, best_idx),
+        }
+
+
+RELATED_COUNT = 3
+
+
+def _related(entries: list[dict], scores: np.ndarray, best_idx: int) -> list[str]:
+    """Perguntas vizinhas no cache, pra um hit também render sugestões de continuação.
+
+    O caminho do cache não chama o LLM, então as sugestões não podem vir dele. Reaproveita os
+    scores já calculados no lookup: as perguntas mais parecidas com a que o usuário fez, do mesmo
+    documento, são exatamente os assuntos vizinhos — e, por estarem no cache, têm resposta certa.
+    """
+    source = entries[best_idx].get("source")
+    ranked = sorted(range(len(entries)), key=lambda i: scores[i], reverse=True)
+    return [
+        entries[i]["question"]
+        for i in ranked
+        if i != best_idx and entries[i].get("source") == source
+    ][:RELATED_COUNT]

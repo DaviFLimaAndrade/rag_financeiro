@@ -50,9 +50,9 @@ def run_evaluation() -> list[EvalResult]:
     cases = load_golden_dataset()
     logger.info(f"{len(cases)} casos carregados")
     logger.info(f"Gerador: {current_provider_label()}")
-    logger.info(f"Judge: {current_provider_label(config.JUDGE_PROVIDER)}")
+    logger.info(f"Judge: {current_provider_label(config.JUDGE_PROVIDER, purpose='judge')}")
 
-    judge_llm = get_llm(provider=config.JUDGE_PROVIDER, temperature=0)
+    judge_llm = get_llm(provider=config.JUDGE_PROVIDER, temperature=0, purpose="judge")
     results = []
 
     for i, case in enumerate(cases, start=1):
@@ -132,7 +132,7 @@ def print_report(results: list[EvalResult]):
                 "results": [asdict(r) for r in results],
                 "summary": {
                     "provider": current_provider_label(),
-                    "judge_provider": current_provider_label(config.JUDGE_PROVIDER),
+                    "judge_provider": current_provider_label(config.JUDGE_PROVIDER, purpose="judge"),
                     "avg_score": round(avg_score, 2),
                     "approval_rate": round(approved / total, 2) if total else 0,
                     "source_accuracy": round(source_accuracy, 2),
