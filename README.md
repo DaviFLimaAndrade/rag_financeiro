@@ -85,6 +85,7 @@ python scripts/ingest.py
 streamlit run app/streamlit_app.py
 
 # 3. Avaliação (LLM-as-judge contra o golden dataset)
+python scripts/validate_golden.py   # checagem offline do dataset, sem chamar LLM
 python scripts/evaluate.py
 ```
 
@@ -96,6 +97,28 @@ de 1 a 5, com regras de calibração explícitas (ex.: uma recusa honesta quando
 no documento é sempre nota 2 — falha de retrieval — nunca é "perdoada" por ser honesta). O
 resultado é salvo em `eval_results.json` com nota média, taxa de aprovação e acurácia de fonte.
 
+O dataset tem 26 perguntas cobrindo os 6 documentos do corpus: REF de novembro de 2024, REF de maio
+de 2026, RPM de junho de 2026, as atas do Copom 279 e 280 e o Caderno de Educação Financeira. Como
+os dois REFs têm seções e gráficos de numeração parecida, as perguntas do REF de 2024 são ancoradas
+no texto ("No REF de novembro de 2024, ..."); sem isso a pergunta é genuinamente ambígua e não dá
+pra dizer se o retrieval errou. Uma pergunta é multidocumento (compara as duas atas do Copom) e o
+`expected_source` dela é uma lista — nesse caso o retrieval só conta como acerto se trouxer todos
+os documentos. O relatório quebra nota e acurácia de fonte **por documento** e **por categoria**,
+porque a média global esconde o modo de falha típico de corpus multi-documento: trazer o trecho
+certo do documento errado.
+
+`python scripts/validate_golden.py` valida o dataset offline, sem nenhuma chamada de LLM: checa que
+todo `expected_source` existe no índice e que todo fato em `**negrito**` aparece literalmente no
+texto extraído daquele PDF. É o teto do key-fact recall — se o fato não está nem no documento
+inteiro, nenhum retrieval consegue trazê-lo e a nota baixa seria culpa do dataset, não do RAG.
+Rodar isso revelou que parte do key-fact recall antigo media artefato de dataset, não retrieval:
+alguns fatos em negrito eram paráfrases do PDF, outros eram números lidos a olho de gráficos que o
+docling extrai como imagem (esses perderam o negrito e agora ficam a cargo só do juiz), e tabelas
+extraídas viram texto do tipo `Fev 2024 = 31`, sem o `%`.
+
+Rodando com `--limit N` a avaliação usa só os N primeiros casos e não sobrescreve
+`eval_results.json` — útil pra testar mudança no pipeline sem queimar quota de API à toa.
+
 O juiz (`JUDGE_PROVIDER`, padrão OpenRouter) é sempre um provider diferente do gerador (Groq) de
 propósito — um LLM avaliando a própria resposta (self-grading) tende a ser mais leniente consigo
 mesmo, o que inflaria a nota do badge. Como o OpenRouter também é o fallback da geração, o modelo
@@ -105,10 +128,8 @@ requer `OPENROUTER_API_KEY` no `.env`; no CI (GitHub Actions), requer o secret `
 configurado no repositório (Settings → Secrets and variables → Actions), junto do `GROQ_API_KEY`
 já existente.
 
-Como o golden dataset não tem página/chunk esperado anotado (só um `expected_source`, sempre
-`relatorio_estabilidade_bcb.pdf` — o dataset é anterior à entrada dos outros documentos no corpus e
-ainda não cobre RPM, atas nem o Caderno), a acurácia de retrieval também é medida por
-**key-fact recall**
+Como o golden dataset não tem página/chunk esperado anotado (só o `expected_source`, na granularidade
+de documento), a acurácia de retrieval também é medida por **key-fact recall**
 (`src/rag_financeiro/evaluation/metrics.py`): os trechos em `**negrito**` do `ground_truth` (os
 valores/fatos que a resposta precisa conter) são extraídos e verificados contra o texto dos chunks
 recuperados. É uma métrica aproximada — pode dar falso negativo se o PDF formata um número
@@ -145,7 +166,9 @@ realmente entrega em produção hoje), o resultado inverte e se aproxima:
 Com o mesmo espaço de contexto, o naive aposta tudo em 1 chunk gigante; o Docling encaixa ~3
 chunks menores e mais focados no mesmo espaço — mecanicamente é o comportamento esperado de
 chunking table-aware. Duas ressalvas honestas: a margem (2 p.p.) é pequena e a amostra é de só 12
-perguntas — é sinal direcional, não prova estatística forte. E `key_fact_recall` só checa se o
+perguntas sobre 1 documento — os números da tabela são de antes do corpus crescer para 6
+documentos e do golden dataset ir para 26 perguntas; reexecutar o script hoje mede os 6. É sinal
+direcional, não prova estatística forte. E `key_fact_recall` só checa se o
 número aparece em algum lugar do texto recuperado, não se ele está coeso com o rótulo/tabela que
 dá contexto a ele — a vantagem real do table-aware chunking provavelmente é maior do que essa
 métrica consegue capturar.

@@ -52,6 +52,9 @@ jobs:
         if: steps.chroma-cache.outputs.cache-hit != 'true'
         run: python scripts/ingest.py
 
+      - name: Validate golden dataset
+        run: python scripts/validate_golden.py
+
       - name: Run evaluation
         run: python scripts/evaluate.py
 
