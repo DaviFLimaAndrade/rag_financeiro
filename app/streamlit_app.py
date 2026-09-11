@@ -64,10 +64,14 @@ ERROR_ICONS = {
 TITLE_MAX_LEN = 32
 TITLE_STORE_LEN = 120
 
+# Escolhidas por score de retrieval medido, não por intuição: "Resumo do último
+# relatório" (0.013) e "Qual o risco de crédito atual?" (0.002) recuperavam ruído
+# e o modelo respondia que não tinha encontrado nada. A primeira daqui bate no
+# cache CAG e responde na hora.
 SUGESTOES = [
-    (":material/credit_score:", "Qual o risco de crédito atual?"),
-    (":material/summarize:", "Resumo do último relatório"),
+    (":material/balance:", "O que o Banco Central define como estabilidade financeira?"),
     (":material/warning:", "Principais riscos sistêmicos"),
+    (":material/health_and_safety:", "Como está a solvência dos bancos?"),
 ]
 
 
