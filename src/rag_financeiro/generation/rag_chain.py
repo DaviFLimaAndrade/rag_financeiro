@@ -91,18 +91,12 @@ MAX_FOLLOWUP_LEN = 80
 
 
 def _split_followups(text: str) -> tuple[str, list[str]]:
-    """Separa a resposta da última linha `PRÓXIMAS: a | b | c` pedida no prompt.
-
-    As sugestões vêm no mesmo request da resposta justamente pra não gastar uma segunda chamada de
-    LLM por pergunta. Em troca, o formato pode vir torto (o modelo às vezes omite a linha, ou a
-    coloca no meio) — nesse caso a resposta segue inteira e a UI simplesmente não mostra sugestões.
-    """
+    """Separa a resposta da última linha `PRÓXIMAS: a | b | c` pedida no prompt."""
     marker_at = text.rfind(FOLLOWUP_MARKER)
     if marker_at == -1:
         return text.strip(), []
 
     raw = text[marker_at + len(FOLLOWUP_MARKER) :]
-    # A linha é a última da mensagem; se o modelo escreveu algo depois, ignora o excedente.
     raw = raw.split("\n", 1)[0]
 
     followups = []
@@ -114,21 +108,12 @@ def _split_followups(text: str) -> tuple[str, list[str]]:
     return text[:marker_at].strip(), followups[:MAX_FOLLOWUPS]
 
 
-# "D) Decisão de política monetária", "1.2.5 Riscos", "- Mapear as dívidas" -> texto puro.
 _HEADING_PREFIX = re.compile(r"^\s*(?:[-•*]|\(?[A-Za-z]\)|\d+(?:\.\d+)*\)?)\s+")
-# O Docling às vezes gruda o número da página no fim do título ("Riscos à estabilidade 63"), o que
-# além de feio faz a mesma seção parecer duas ao deduplicar.
 _HEADING_PAGE_SUFFIX = re.compile(r"\s+\d+$")
 
 
 def _followups_from_sections(chunks: list[dict], question: str = "") -> list[str]:
-    """Sugestões de reserva, montadas com as seções que o retrieval trouxe.
-
-    O modelo às vezes omite a linha `PRÓXIMAS:` mesmo com a instrução repetida. Uma fileira de
-    sugestões que aparece e some entre respostas é pior que uma fileira mais simples e constante,
-    então aqui os próprios títulos de seção viram assuntos clicáveis — e, por terem acabado de ser
-    recuperados, são assuntos que o índice comprovadamente cobre.
-    """
+    """Sugestões de reserva, montadas com as seções que o retrieval trouxe."""
     asked = question.lower().strip(" ?!.")
     topics: list[str] = []
     for chunk in chunks:
@@ -139,7 +124,6 @@ def _followups_from_sections(chunks: list[dict], question: str = "") -> list[str
             continue
         if any(section.lower() == t.lower() for t in topics):
             continue
-        # A seção que dá o título à própria resposta não é uma continuação.
         if asked and section.lower() in asked:
             continue
         topics.append(section)
@@ -247,8 +231,6 @@ def _generate_node(state: RAGState) -> dict:
         HumanMessage(
             content=(
                 f"Contexto:\n{context}\n\nPergunta: {state['original_question']}\n\n"
-                # Repetido aqui de propósito: no system prompt sozinho o modelo omitia a linha,
-                # provavelmente por conflito com a instrução de ser conciso logo acima dela.
                 f"Termine a mensagem com a linha de continuação no formato "
                 f"`{FOLLOWUP_MARKER} pergunta 1 | pergunta 2 | pergunta 3`."
             )

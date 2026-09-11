@@ -1,13 +1,6 @@
 import re
 import unicodedata
 
-# O usuário pergunta "qual a Selic?"; a ata do Copom escreve "reduzir a taxa básica de juros para
-# 14,00% a.a." e nunca usa a palavra "Selic" na frase da decisão. O BM25 não casa e o embedding
-# denso fica fraco o suficiente pro chunk certo não entrar nem no pool do reranker.
-#
-# Expandir a *pergunta* (não o corpus) com o vocabulário do BCB resolve sem reindexar nada: a chave
-# é o termo que o leigo usa, o valor é como o documento escreve. Só entram pares verificados contra
-# o corpus — sinônimo especulativo aqui vira ruído no reranker.
 _EXPANSIONS = {
     "selic": "taxa básica de juros",
     "juro": "taxa de juros",
@@ -30,12 +23,7 @@ def _normalize(text: str) -> str:
 
 
 def expand(query: str) -> str:
-    """Acrescenta à pergunta os termos equivalentes usados nos documentos do BCB.
-
-    A pergunta original é preservada no início — a expansão só adiciona recall, nunca substitui o
-    que o usuário escreveu. O texto expandido vale para busca densa, BM25 e rerank; o que vai pro
-    LLM continua sendo a pergunta original.
-    """
+    """Acrescenta à pergunta os termos equivalentes usados nos documentos do BCB."""
     normalized = _normalize(query)
     extras = []
     for term, expansion in _EXPANSIONS.items():

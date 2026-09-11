@@ -111,11 +111,7 @@ def _render_sources(sources: list) -> None:
 
 
 def _render_followups(followups: list, key_prefix: str) -> None:
-    """Botões de continuação abaixo da resposta.
-
-    Clicar só agenda a pergunta e refaz o rerun: o fluxo de perguntar já roda mais abaixo no
-    script, e tentar respondê-la aqui duplicaria essa lógica.
-    """
+    """Botões de continuação abaixo da resposta."""
     if not followups:
         return
     st.caption("Continuar por aqui:")
@@ -323,9 +319,6 @@ if question:
         }
     )
 
-# Depois de tudo: as sugestões pertencem à última resposta da conversa, seja ela a que acabou de
-# ser gerada ou a que já estava no histórico. Renderizar aqui (e não dentro do loop de mensagens)
-# garante que só existe um conjunto de botões na tela, sempre no fim.
 current = st.session_state.conversations.get(st.session_state.current_conv_id)
 if current and current["messages"] and current["messages"][-1]["role"] == "assistant":
     _render_followups(current["messages"][-1].get("followups") or [], "last")

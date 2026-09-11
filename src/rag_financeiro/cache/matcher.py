@@ -62,12 +62,7 @@ RELATED_COUNT = 3
 
 
 def _related(entries: list[dict], scores: np.ndarray, best_idx: int) -> list[str]:
-    """Perguntas vizinhas no cache, pra um hit também render sugestões de continuação.
-
-    O caminho do cache não chama o LLM, então as sugestões não podem vir dele. Reaproveita os
-    scores já calculados no lookup: as perguntas mais parecidas com a que o usuário fez, do mesmo
-    documento, são exatamente os assuntos vizinhos — e, por estarem no cache, têm resposta certa.
-    """
+    """Perguntas vizinhas no cache, para um hit também render sugestões de continuação."""
     source = entries[best_idx].get("source")
     ranked = sorted(range(len(entries)), key=lambda i: scores[i], reverse=True)
     return [
