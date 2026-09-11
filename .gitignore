@@ -71,6 +71,9 @@ embeddings_cache/
 .env
 .env.local
 .env.*.local
+# Qualquer derivado do .env (backup, .env.bak, .env.old) carrega as chaves junto.
+.env.*
+!.env.example
 
 # OS files
 .DS_Store
