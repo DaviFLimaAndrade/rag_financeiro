@@ -7,6 +7,7 @@ REQUEST_TIMEOUT_SECONDS = 15
 # previsíveis que o Groq — nesse ponto a alternativa a esperar mais é falhar de vez, então vale
 # dar mais tempo pro fallback antes de desistir.
 FALLBACK_TIMEOUT_SECONDS = 30
+OPENROUTER_MAX_MODELS = 3
 
 _llm_cache: dict[tuple[str, float], object] = {}
 
@@ -122,9 +123,11 @@ def get_llm(provider: str | None = None, temperature: float = 0, purpose: str = 
         if not config.OPENROUTER_API_KEY:
             raise RuntimeError("OPENROUTER_API_KEY não configurada no .env")
         from langchain_openai import ChatOpenAI
-        model_name = (
-            config.OPENROUTER_JUDGE_MODEL if purpose == "judge" else config.OPENROUTER_MODEL
-        )
+        is_judge = purpose == "judge"
+        model_name = config.OPENROUTER_JUDGE_MODEL if is_judge else config.OPENROUTER_MODEL
+        extra_body = None
+        if not is_judge and config.OPENROUTER_MODEL_FALLBACKS:
+            extra_body = {"models": [model_name, *config.OPENROUTER_MODEL_FALLBACKS][:OPENROUTER_MAX_MODELS]}
         llm = ChatOpenAI(
             model=model_name,
             api_key=config.OPENROUTER_API_KEY,
@@ -133,6 +136,7 @@ def get_llm(provider: str | None = None, temperature: float = 0, purpose: str = 
             timeout=REQUEST_TIMEOUT_SECONDS,
             max_retries=0,
             max_tokens=config.LLM_MAX_TOKENS,
+            extra_body=extra_body,
         )
 
     else:

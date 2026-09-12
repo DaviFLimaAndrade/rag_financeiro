@@ -58,7 +58,13 @@ PDF -> Docling (parsing/chunking table-aware) -> embeddings locais (bge-m3)
 - **Geração via Groq (LangGraph)**, com histórico de conversa: uma pergunta de acompanhamento
   (ex. "e sobre isso?") é condensada numa pergunta autocontida antes do retrieval. Chamadas ao LLM
   têm timeout configurado, e erros de quota/contexto são classificados na UI com opção de
-  "tentar novamente".
+  "tentar novamente". Quando o Groq devolve 429, a geração cai pro OpenRouter — e esse fallback usa
+  modelos free **pinados** (`OPENROUTER_MODEL` + `OPENROUTER_MODEL_FALLBACKS`, repassados como a
+  lista `models` do OpenRouter, que aceita no máximo 3). Antes o fallback era o alias de roteamento
+  `openrouter/free`, que às vezes caía no `nvidia/nemotron-3.5-content-safety:free` — um
+  classificador de moderação, não um modelo de chat: a resposta ao usuário virava literalmente
+  `User Safety: safe`. No golden dataset isso aparecia como nota 2 do juiz com key-fact recall de
+  100% e fonte correta, ou seja, o retrieval acertava e o gerador é que estragava a resposta.
 - **ChromaDB** local (`data/processed/chroma_db`), com `upsert()` por hash do conteúdo do chunk —
   rodar a ingestão de novo não duplica dados.
 - **Streamlit** como interface de chat, com múltiplas conversas na sidebar.
@@ -122,8 +128,8 @@ Rodando com `--limit N` a avaliação usa só os N primeiros casos e não sobres
 O juiz (`JUDGE_PROVIDER`, padrão OpenRouter) é sempre um provider diferente do gerador (Groq) de
 propósito — um LLM avaliando a própria resposta (self-grading) tende a ser mais leniente consigo
 mesmo, o que inflaria a nota do badge. Como o OpenRouter também é o fallback da geração, o modelo
-do juiz é pinado à parte em `OPENROUTER_JUDGE_MODEL` em vez de herdar `OPENROUTER_MODEL` — que é um
-alias de roteamento e poderia cair justamente no modelo que gerou a resposta. Rodar localmente
+do juiz é pinado à parte em `OPENROUTER_JUDGE_MODEL` em vez de herdar `OPENROUTER_MODEL`, pra
+garantir que juiz e gerador nunca sejam o mesmo modelo. Rodar localmente
 requer `OPENROUTER_API_KEY` no `.env`; no CI (GitHub Actions), requer o secret `OPENROUTER_API_KEY`
 configurado no repositório (Settings → Secrets and variables → Actions), junto do `GROQ_API_KEY`
 já existente.

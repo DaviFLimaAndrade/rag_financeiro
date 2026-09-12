@@ -29,7 +29,15 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "inclusionai/ling-3.0-flash-fin:free")
+OPENROUTER_MODEL_FALLBACKS = [
+    m.strip()
+    for m in os.getenv(
+        "OPENROUTER_MODEL_FALLBACKS",
+        "nvidia/nemotron-3-super-120b-a12b:free,cohere/north-mini-code:free",
+    ).split(",")
+    if m.strip()
+]
 OPENROUTER_JUDGE_MODEL = os.getenv("OPENROUTER_JUDGE_MODEL", "nex-agi/nex-n2.5-pro:free")
 FALLBACK_PROVIDER = os.getenv("FALLBACK_PROVIDER", "openrouter")
 
