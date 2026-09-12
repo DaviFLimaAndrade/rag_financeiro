@@ -38,6 +38,8 @@ from rag_financeiro.generation.llm_provider import get_llm, current_provider_lab
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
+MAX_CONSECUTIVE_ERRORS = 3
+
 
 @dataclass
 class EvalResult:
@@ -45,7 +47,7 @@ class EvalResult:
     categoria: str
     expected_source: list[str]
     retrieved_sources: list[str]
-    score: int
+    score: int | None
     failure_type: str
     justificativa: str
     source_ok: bool
@@ -65,27 +67,33 @@ def run_evaluation(limit: int | None = None) -> list[EvalResult]:
     judge_llm = get_llm(provider=config.JUDGE_PROVIDER, temperature=0, purpose="judge")
     results = []
 
+    consecutive_errors = 0
+
     for i, case in enumerate(cases, start=1):
         logger.info(f"[{i}/{len(cases)}] Avaliando: {case['question']}")
 
-        start = time.perf_counter()
-        response = answer_question(case["question"])
-        elapsed = time.perf_counter() - start
-
         expected = case.get("expected_source") or []
         expected = [expected] if isinstance(expected, str) else list(expected)
-        retrieved = sorted({str(s.get("source", "")) for s in response["sources"]})
-        # Numa pergunta multidocumento o retrieval precisa trazer todos os documentos
-        # citados no ground_truth, não só um deles.
-        source_ok = all(
-            any(exp.lower() in src.lower() for src in retrieved) for exp in expected
-        )
 
-        score, failure_type, justificativa = judge_answer(
-            judge_llm, case["question"], case["ground_truth"], response["answer"]
-        )
-
-        kfr = key_fact_recall(case["ground_truth"], response["sources"])
+        start = time.perf_counter()
+        try:
+            response = answer_question(case["question"])
+            retrieved = sorted({str(s.get("source", "")) for s in response["sources"]})
+            source_ok = all(
+                any(exp.lower() in src.lower() for src in retrieved) for exp in expected
+            )
+            score, failure_type, justificativa = judge_answer(
+                judge_llm, case["question"], case["ground_truth"], response["answer"]
+            )
+            kfr = key_fact_recall(case["ground_truth"], response["sources"])
+            preview = response["answer"][:200]
+            consecutive_errors = 0
+        except Exception as error:
+            consecutive_errors += 1
+            score, failure_type = None, "erro"
+            justificativa = f"{type(error).__name__}: {error}"[:300]
+            retrieved, source_ok, kfr, preview = [], False, None, ""
+            logger.warning(f"[{i}/{len(cases)}] falhou: {justificativa}")
 
         results.append(
             EvalResult(
@@ -98,38 +106,56 @@ def run_evaluation(limit: int | None = None) -> list[EvalResult]:
                 justificativa=justificativa,
                 source_ok=source_ok,
                 key_fact_recall=round(kfr, 2) if kfr is not None else None,
-                latency_seconds=round(elapsed, 2),
-                generated_answer=response["answer"][:200],
+                latency_seconds=round(time.perf_counter() - start, 2),
+                generated_answer=preview,
             )
         )
+
+        if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+            logger.error(
+                f"{consecutive_errors} erros seguidos de provedor — interrompendo em {i}/{len(cases)}. "
+                "Provavelmente é cota diária esgotada; relatando o que já foi avaliado."
+            )
+            break
 
     return results
 
 
-def print_report(results: list[EvalResult], save: bool = True):
-    total = len(results)
-    avg_score = sum(r.score for r in results) / total if total else 0
-    approved = sum(1 for r in results if r.score >= 4)
-    source_accuracy = sum(1 for r in results if r.source_ok) / total if total else 0
-    avg_latency = sum(r.latency_seconds for r in results) / total if total else 0
-    retrieval_failures = sum(1 for r in results if r.failure_type == "retrieval")
+def _avg_score(rows: list[EvalResult]) -> float | None:
+    scored = [r.score for r in rows if r.score is not None]
+    return sum(scored) / len(scored) if scored else None
 
-    kfr_values = [r.key_fact_recall for r in results if r.key_fact_recall is not None]
+
+def print_report(results: list[EvalResult], save: bool = True):
+    scored = [r for r in results if r.score is not None]
+    errored = [r for r in results if r.score is None]
+    total = len(scored)
+    avg_score = _avg_score(scored) or 0
+    approved = sum(1 for r in scored if r.score >= 4)
+    source_accuracy = sum(1 for r in scored if r.source_ok) / total if total else 0
+    avg_latency = sum(r.latency_seconds for r in scored) / total if total else 0
+    retrieval_failures = sum(1 for r in scored if r.failure_type == "retrieval")
+
+    kfr_values = [r.key_fact_recall for r in scored if r.key_fact_recall is not None]
     avg_key_fact_recall = sum(kfr_values) / len(kfr_values) if kfr_values else None
 
     by_document = defaultdict(list)
-    for r in results:
+    for r in scored:
         for doc in r.expected_source or ["(sem fonte esperada)"]:
             by_document[doc].append(r)
 
     by_category = defaultdict(list)
-    for r in results:
+    for r in scored:
         by_category[r.categoria or "(sem categoria)"].append(r)
 
     print("\n" + "=" * 60)
     print("RELATÓRIO DE AVALIAÇÃO — RAG FINANCEIRO (LLM-as-judge)")
     print("=" * 60)
     for r in results:
+        if r.score is None:
+            print(f"\n[💥 sem nota] (erro) {r.question}")
+            print(f"  Erro: {r.justificativa}")
+            continue
         status = "✅" if r.score >= 4 else "⚠️" if r.score == 3 else "❌"
         print(f"\n[{status} nota {r.score}/5] ({r.failure_type}) {r.question}")
         print(f"  Justificativa do judge: {r.justificativa}")
@@ -140,8 +166,13 @@ def print_report(results: list[EvalResult], save: bool = True):
         print(f"  Resposta (preview): {r.generated_answer}...")
 
     print("\n" + "-" * 60)
+    if errored:
+        print(f"ATENÇÃO: {len(errored)} de {len(results)} casos não puderam ser avaliados (erro de "
+              f"provedor) e estão fora das médias abaixo — o resultado é PARCIAL.")
+    print(f"Casos avaliados: {total}")
     print(f"Nota média (judge): {avg_score:.2f}/5")
-    print(f"Taxa de aprovação (nota >= 4): {approved}/{total} ({approved/total*100:.0f}%)")
+    print(f"Taxa de aprovação (nota >= 4): {approved}/{total} ({approved/total*100:.0f}%)" if total
+          else "Taxa de aprovação (nota >= 4): n/a")
     print(f"Acurácia de retrieval (fonte correta): {source_accuracy*100:.0f}%")
     if avg_key_fact_recall is not None:
         print(f"Key-fact recall médio (fatos-chave recuperados): {avg_key_fact_recall*100:.0f}%")
@@ -151,14 +182,13 @@ def print_report(results: list[EvalResult], save: bool = True):
     print("\nPor documento esperado:")
     for doc, rows in sorted(by_document.items()):
         n = len(rows)
-        doc_score = sum(r.score for r in rows) / n
         doc_source = sum(1 for r in rows if r.source_ok) / n
-        print(f"  {doc}: {n} casos | nota {doc_score:.2f}/5 | fonte correta {doc_source*100:.0f}%")
+        print(f"  {doc}: {n} casos | nota {_avg_score(rows):.2f}/5 | fonte correta {doc_source*100:.0f}%")
 
     print("\nPor categoria:")
     for cat, rows in sorted(by_category.items()):
         n = len(rows)
-        print(f"  {cat}: {n} casos | nota {sum(r.score for r in rows)/n:.2f}/5")
+        print(f"  {cat}: {n} casos | nota {_avg_score(rows):.2f}/5")
     print("=" * 60 + "\n")
 
     if not save:
@@ -172,6 +202,9 @@ def print_report(results: list[EvalResult], save: bool = True):
                 "summary": {
                     "provider": current_provider_label(),
                     "judge_provider": current_provider_label(config.JUDGE_PROVIDER, purpose="judge"),
+                    "cases_evaluated": total,
+                    "errors": len(errored),
+                    "partial": bool(errored),
                     "avg_score": round(avg_score, 2),
                     "approval_rate": round(approved / total, 2) if total else 0,
                     "source_accuracy": round(source_accuracy, 2),
@@ -181,7 +214,7 @@ def print_report(results: list[EvalResult], save: bool = True):
                     "by_document": {
                         doc: {
                             "cases": len(rows),
-                            "avg_score": round(sum(r.score for r in rows) / len(rows), 2),
+                            "avg_score": round(_avg_score(rows), 2),
                             "source_accuracy": round(
                                 sum(1 for r in rows if r.source_ok) / len(rows), 2
                             ),
@@ -191,7 +224,7 @@ def print_report(results: list[EvalResult], save: bool = True):
                     "by_category": {
                         cat: {
                             "cases": len(rows),
-                            "avg_score": round(sum(r.score for r in rows) / len(rows), 2),
+                            "avg_score": round(_avg_score(rows), 2),
                         }
                         for cat, rows in sorted(by_category.items())
                     },

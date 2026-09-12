@@ -21,6 +21,13 @@ def main():
     data = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
     summary = data["summary"]
 
+    if summary.get("partial"):
+        print(
+            f"Execução parcial ({summary.get('errors')} casos com erro de provedor): "
+            f"badge mantido como está."
+        )
+        return
+
     avg_score = summary["avg_score"]
     approval_rate = round(summary["approval_rate"] * 100)
     message = f"{avg_score:.1f}/5 · {approval_rate}% aprovação"
