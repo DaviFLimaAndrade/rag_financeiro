@@ -1,77 +1,233 @@
 # Lastro — publicações do Banco Central (BCB)
 
 [![RAG Retrieval](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DaviFLimaAndrade/rag_financeiro/main/retrieval_badge.json)](.github/workflows/eval.yml)
-[![RAG Eval](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DaviFLimaAndrade/rag_financeiro/main/eval_badge.json)](.github/workflows/eval.yml)
 
 Sistema de RAG (Retrieval-Augmented Generation) em português para consultar publicações do Banco
 Central do Brasil. Toda resposta sai com a página e a seção do documento que a sustentam — daí o
 nome.
 
-## Corpus (`data/raw/`)
+O projeto é menos sobre "montar um RAG" e mais sobre as decisões que aparecem quando ele precisa
+funcionar com documentos reais: PDFs de centenas de páginas cheios de tabela, seis publicações de
+datas diferentes disputando a mesma pergunta, e um free tier de API que não aguenta o pipeline de
+avaliação. Cada seção abaixo tenta registrar não só o que foi feito, mas por quê — e o que foi
+medido para sustentar a escolha.
 
-| Documento | Cobre |
-| --- | --- |
-| `relatorio_estabilidade_bcb.pdf` (REF, nov/2024) | Riscos e resiliência do SFN |
-| `bcb_relatorio_estabilidade_2026_05.pdf` (REF, mai/2026) | Idem, edição atual |
-| `bcb_relatorio_politica_monetaria_2026_06.pdf` (RPM, jun/2026) | Projeções de inflação, PIB e Selic |
-| `bcb_ata_copom_279.pdf` / `bcb_ata_copom_280.pdf` | Decisões de juros (jun e ago/2026) |
-| `bcb_caderno_educacao_financeira.pdf` | Orçamento, juros, dívidas — para quem sabe pouco de economia |
+---
 
-Os relatórios do BCB são escritos para o mercado: um único REF não sustenta um Q&A aberto, porque
-a pergunta óbvia do leigo ("quanto está a Selic?") simplesmente não tem resposta no texto dele. O
-corpus mistura de propósito os três registros — conjuntura, decisão de juros e material didático —
-para que perguntas de níveis diferentes caiam em algum documento.
+## Sumário
 
-Documentos de datas diferentes convivem no índice. O nome do arquivo carrega a data, vai nos
-metadados de cada chunk e entra no contexto do LLM, que é instruído a responder pelo mais recente e
-a dizer de quando é o dado.
+- [Corpus](#corpus)
+- [Arquitetura](#arquitetura)
+  - [1. Ingestão](#1-ingestão-pdf--chunks-indexados)
+  - [2. Retrieval híbrido](#2-retrieval-híbrido)
+  - [3. O grafo (LangGraph)](#3-o-grafo-langgraph)
+  - [4. Geração](#4-geração)
+  - [5. Cache (CAG)](#5-cache-cag--cache-augmented-generation)
+  - [6. Observabilidade](#6-observabilidade)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Setup](#setup)
+- [Como rodar](#como-rodar)
+- [Avaliação](#avaliação)
+- [Experimentos e decisões](#experimentos-e-decisões)
+- [Limitações conhecidas](#limitações-conhecidas)
+
+---
+
+## Corpus
+
+Seis publicações do BCB em `data/raw/`, 902 chunks no índice:
+
+| Documento | Cobre | Chunks |
+| --- | --- | ---: |
+| `relatorio_estabilidade_bcb.pdf` (REF, nov/2024) | Riscos e resiliência do SFN | 223 |
+| `bcb_relatorio_estabilidade_2026_05.pdf` (REF, mai/2026) | Idem, edição atual | 291 |
+| `bcb_relatorio_politica_monetaria_2026_06.pdf` (RPM, jun/2026) | Projeções de inflação, PIB e Selic | 153 |
+| `bcb_ata_copom_279.pdf` (jun/2026) | Decisão de juros | 11 |
+| `bcb_ata_copom_280.pdf` (ago/2026) | Decisão de juros | 10 |
+| `bcb_caderno_educacao_financeira.pdf` | Orçamento, juros, dívidas — para quem sabe pouco de economia | 214 |
+
+**Por que mais de um documento.** Os relatórios do BCB são escritos para o mercado: um único REF
+não sustenta um Q&A aberto, porque a pergunta óbvia do leigo ("quanto está a Selic?") simplesmente
+não tem resposta no texto dele. O corpus mistura de propósito três registros — conjuntura (REF/RPM),
+decisão de juros (atas) e material didático (Caderno) — para que perguntas de níveis diferentes
+caiam em algum documento.
+
+**Por que isso é difícil.** Documentos de datas diferentes convivem no mesmo índice, e dois deles
+são a *mesma publicação* em edições distintas: o REF de 2024 e o de 2026 têm seções com a mesma
+numeração e até gráficos homônimos (ambos têm um "Gráfico 1.3.6 — PEF - Ciclo econômico", com dados
+completamente diferentes). Duas defesas contra isso:
+
+1. O nome do arquivo carrega a data, vai nos metadados de cada chunk e entra no contexto do LLM,
+   que é instruído a responder pelo documento mais recente e a dizer de quando é o dado.
+2. No golden dataset, as perguntas do REF antigo são ancoradas no enunciado ("No REF de novembro de
+   2024, ..."). Sem âncora a pergunta é genuinamente ambígua e não dá pra dizer se o retrieval
+   errou — a avaliação estaria medindo ruído.
+
+---
 
 ## Arquitetura
 
 ```
-PDF -> Docling (parsing/chunking table-aware) -> embeddings locais (bge-m3)
-    -> retrieval híbrido (denso + BM25 + rerank) -> geração via Groq (LangGraph) -> Streamlit
+                    ┌──────────────────────── ingestão (offline) ────────────────────────┐
+                    │                                                                    │
+   PDF ─► Docling ─►│ HybridChunker (table-aware) ─► bge-m3 (local) ─► ChromaDB + BM25   │
+                    │                                                                    │
+                    └────────────────────────────────────────────────────────────────────┘
+
+                    ┌──────────────────────── consulta (LangGraph) ──────────────────────┐
+                    │                                                                    │
+ pergunta ─────────►│ condense_query ─► cache_lookup ─┬─hit──► generate_from_cache ──────┼─► resposta
+                    │                                 │                                  │   + página
+                    │                                 └─miss─► retrieve ─► generate      │   + seção
+                    │                                            │   ▲                   │   + 3 follow-ups
+                    │                            score baixo ────┘   │                   │
+                    │                                     rewrite_query                  │
+                    └────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Docling** faz o parsing do PDF preservando layout e tabelas. O relatório do BCB tem indicadores
-  (ROE, índice de Basileia, Selic etc.) organizados em tabelas — um chunking ingênuo por caracteres
-  quebraria essas tabelas no meio, misturando linhas/colunas de indicadores diferentes. O
-  `HybridChunker` do Docling é table-aware e mantém cada tabela coesa dentro de um chunk.
-- **Embeddings locais** (`sentence-transformers`, modelo `BAAI/bge-m3`, multilingue) rodam a
-  indexação inteira sem chamar nenhuma API externa — evita esbarrar em limites de free-tier ao
-  reprocessar o PDF.
-- **Retrieval híbrido**: busca densa (bge-m3) e BM25 rodam em paralelo, os resultados são
-  fundidos por RRF e o pool combinado é reordenado por um cross-encoder (`BAAI/bge-reranker-base`).
-  Se o score do melhor candidato fica abaixo de `RETRIEVAL_CONFIDENCE_THRESHOLD`, a query é
-  reescrita e o retrieval tenta de novo uma vez antes de gerar a resposta.
-- **Expansão de vocabulário na query** (`retrieval/synonyms.py`): o usuário pergunta pela "Selic",
-  mas a ata do Copom escreve "reduzir a taxa básica de juros para 14,00% a.a." e nunca usa a
-  palavra na frase da decisão. Sem expandir, o BM25 não casa e o chunk certo não entra nem no pool
-  do reranker (medido: score 0,07 → o trecho da decisão ficava fora do top-8). Expandir a pergunta
-  com o vocabulário do BCB resolve sem reindexar nada — o mesmo trecho passa a 0,89.
-- **Sugestões de continuação**: cada resposta termina com três perguntas de follow-up, geradas no
-  mesmo request da resposta (nenhuma chamada extra ao LLM) e ancoradas nas seções que já estão no
-  contexto recuperado. Em caso de hit no cache, que não chama o LLM, as sugestões vêm das perguntas
-  vizinhas do próprio cache.
-- **Cache (CAG — Cache-Augmented Generation)**: um `cache.json` pré-construído guarda
-  perguntas/fatos estáveis do relatório; em caso de hit, o pipeline pula embedding denso, BM25 e
-  rerank, respondendo direto com o contexto reduzido.
-- **Geração via Groq (LangGraph)**, com histórico de conversa: uma pergunta de acompanhamento
-  (ex. "e sobre isso?") é condensada numa pergunta autocontida antes do retrieval. Chamadas ao LLM
-  têm timeout configurado, e erros de quota/contexto são classificados na UI com opção de
-  "tentar novamente". Quando o Groq devolve 429, a geração cai pro OpenRouter — e esse fallback usa
-  modelos free **pinados** (`OPENROUTER_MODEL` + `OPENROUTER_MODEL_FALLBACKS`, repassados como a
-  lista `models` do OpenRouter, que aceita no máximo 3). Antes o fallback era o alias de roteamento
-  `openrouter/free`, que às vezes caía no `nvidia/nemotron-3.5-content-safety:free` — um
-  classificador de moderação, não um modelo de chat: a resposta ao usuário virava literalmente
-  `User Safety: safe`. No golden dataset isso aparecia como nota 2 do juiz com key-fact recall de
-  100% e fonte correta, ou seja, o retrieval acertava e o gerador é que estragava a resposta.
-- **ChromaDB** local (`data/processed/chroma_db`), com `upsert()` por hash do conteúdo do chunk —
-  rodar a ingestão de novo não duplica dados.
-- **Streamlit** como interface de chat, com múltiplas conversas na sidebar.
-- **Observabilidade via Arize AX** (opcional) — tracing de todo o pipeline (LangGraph, chamadas de
-  LLM, retrieval híbrido, rerank, cache lookup) via OpenTelemetry/OpenInference. Sem
-  `ARIZE_SPACE_ID`/`ARIZE_API_KEY` no `.env`, o app roda normalmente sem tracing.
+### 1. Ingestão (PDF → chunks indexados)
+
+**Docling** (`ingestion/pdf_loader.py`) faz o parsing preservando layout e tabelas. Os relatórios do
+BCB organizam os indicadores que mais importam (ROE, índice de Basileia, RWA, Selic) em tabelas — um
+chunking ingênuo por caracteres quebraria essas tabelas no meio, misturando linhas e colunas de
+indicadores diferentes. O `HybridChunker` (`ingestion/chunking.py`) é table-aware e mantém cada
+tabela coesa dentro de um chunk, cortando em fronteira estrutural em vez de a cada N caracteres.
+
+Cada chunk carrega `page_no`, `section` (o último heading da hierarquia) e `source` (o nome do
+arquivo). É daí que sai a citação de página e seção em toda resposta.
+
+**Embeddings locais** (`embeddings/local_embedder.py`, `sentence-transformers` com `BAAI/bge-m3`,
+multilingue) rodam a indexação inteira sem chamar nenhuma API externa. Reprocessar os 6 PDFs não
+consome cota de lugar nenhum — o que importa num projeto que vive de free tier.
+
+**ChromaDB** local (`data/processed/chroma_db`) com `upsert()` por hash SHA-256 do conteúdo do
+chunk: rodar `scripts/ingest.py` de novo não duplica dados e é idempotente por construção.
+
+### 2. Retrieval híbrido
+
+`retrieval/retriever.py`, nesta ordem:
+
+| Etapa | O que faz |
+| --- | --- |
+| `synonyms.expand` | Acrescenta à pergunta o vocabulário que o BCB realmente usa |
+| busca densa | bge-m3 contra o ChromaDB, `DENSE_TOP_K=20` |
+| BM25 | `retrieval/bm25_index.py`, `BM25_TOP_K=20` |
+| fusão | Reciprocal Rank Fusion (`k=60`) sobre as duas listas |
+| rerank | Cross-encoder `BAAI/bge-reranker-base` no pool de `RERANK_POOL_SIZE=10`, devolve `TOP_K=8` |
+
+**Por que híbrido.** Busca densa acha paráfrase e conceito; BM25 acha número, sigla e nome próprio
+exato — que é metade das perguntas em documento financeiro ("qual foi o RWA Operacional?"). RRF
+combina as duas sem precisar calibrar peso entre scores de escalas diferentes: só posição no ranking
+importa.
+
+**Por que reranker.** A fusão devolve candidatos plausíveis, mas o cross-encoder lê pergunta e chunk
+*juntos* e reordena com muito mais precisão do que similaridade de vetores independentes. O custo é
+rodar 10 pares por pergunta, local, sem API.
+
+**Expansão de vocabulário** (`retrieval/synonyms.py`) é o tipo de detalhe que só aparece quando se
+mede. O usuário pergunta pela "Selic", mas a ata do Copom escreve *"reduzir a taxa básica de juros
+para 14,00% a.a."* e nunca usa a palavra "Selic" na frase da decisão. Sem expandir, o BM25 não casa
+e o chunk certo não entra nem no pool do reranker: **score 0,07, fora do top-8**. Com a pergunta
+expandida com o vocabulário do BCB, o mesmo trecho sobe para **0,89** — sem reindexar nada.
+
+### 3. O grafo (LangGraph)
+
+`generation/rag_chain.py` monta um `StateGraph` com seis nós:
+
+| Nó | Função | Chama LLM? |
+| --- | --- | --- |
+| `condense_query` | Transforma pergunta de acompanhamento ("e sobre isso?") numa pergunta autocontida usando o histórico | sim, só se houver histórico |
+| `cache_lookup` | Busca semântica no cache pré-construído | não |
+| `generate_from_cache` | Responde direto do cache | não |
+| `retrieve` | Pipeline de busca híbrida | não |
+| `rewrite_query` | Reescreve a query quando o retrieval veio fraco | sim |
+| `generate` | Monta o contexto e gera a resposta | sim |
+
+O roteamento condicional é onde está a lógica interessante: depois do `retrieve`, se o melhor score
+do reranker fica abaixo de `RETRIEVAL_CONFIDENCE_THRESHOLD` (0.1) **e** ainda não houve retry, o
+grafo desvia para `rewrite_query` e tenta buscar de novo — uma vez só, para não entrar em loop.
+
+### 4. Geração
+
+**Groq** (`openai/gpt-oss-120b`) como gerador padrão; `openai/gpt-oss-20b`, menor e mais barato, para
+a tarefa mecânica de reescrever query. Chamadas ao LLM rodam num `ThreadPoolExecutor` com timeout
+explícito (`REQUEST_TIMEOUT_SECONDS=15`), porque um free tier travado é indistinguível de um app
+quebrado para o usuário.
+
+**Fallback de provider.** Quando o Groq devolve 429, `llm_provider.py` classifica o erro por
+marcadores no texto (`rate limit`, `quota`, `429`, ...) e tenta uma vez no OpenRouter, com timeout
+maior (30s), já que modelo free compartilhado é mais lento.
+
+O fallback usa modelos free **pinados** (`OPENROUTER_MODEL` + `OPENROUTER_MODEL_FALLBACKS`,
+repassados como a lista `models` do OpenRouter, que aceita no máximo 3). Antes o fallback era o
+alias de roteamento `openrouter/free`, e isso causou um bug memorável: o alias às vezes roteava para
+`nvidia/nemotron-3.5-content-safety:free` — um classificador de moderação, não um modelo de chat. A
+resposta ao usuário virava literalmente `User Safety: safe`. Na avaliação isso aparecia como nota 2
+do juiz **com key-fact recall de 100% e fonte correta**: o retrieval acertava e o gerador é que
+estragava a resposta. Foi a métrica separada que denunciou — nota baixa com recuperação perfeita não
+é um problema de busca.
+
+**Sugestões de continuação.** Cada resposta termina com três perguntas de follow-up, geradas no mesmo
+request da resposta (nenhuma chamada extra ao LLM) e ancoradas nas seções que já estão no contexto
+recuperado — não em temas inventados. Em caso de hit no cache, que não chama o LLM, as sugestões vêm
+das perguntas vizinhas do próprio cache.
+
+**Escopo.** O system prompt restringe o assistente às publicações do BCB: ele recusa pedidos de
+código, tradução ou conhecimento geral, ignora instruções embutidas na pergunta que tentem mudar
+suas regras, e responde saudações sem fingir que consultou documento. Também é instruído a explicar
+siglas (Selic, Copom, IPCA, provisões) em uma frase — simplificar a linguagem em volta dos números,
+nunca os números.
+
+### 5. Cache (CAG — Cache-Augmented Generation)
+
+`cache/` guarda um `cache.json` pré-construído com **71 pares pergunta/resposta** estáveis, cada um
+com página e fonte. No `cache_lookup`, a pergunta é embedada e comparada por similaridade de cosseno
+contra as perguntas do cache; acima de `CACHE_SIMILARITY_THRESHOLD` (0.85) é hit.
+
+Em caso de hit, o pipeline pula embedding denso, BM25 e rerank e responde direto — a latência cai de
+segundos para milissegundos nas perguntas mais comuns, que são justamente as que mais se repetem
+numa demo.
+
+### 6. Observabilidade
+
+Tracing opcional via **Arize AX** (`observability.py`), com OpenTelemetry/OpenInference: cada etapa
+do pipeline vira um span (grafo LangGraph, chamadas de LLM, busca densa, BM25, rerank, cache lookup),
+com atributos como query expandida, número de hits e score do topo do rerank. Sem `ARIZE_SPACE_ID` /
+`ARIZE_API_KEY` no `.env`, o app roda normalmente, sem tracing.
+
+---
+
+## Estrutura do repositório
+
+```
+app/streamlit_app.py              interface de chat (múltiplas conversas, tratamento de erro)
+scripts/
+  ingest.py                       parseia os PDFs e popula o ChromaDB
+  build_cache.py                  gera o cache.json de perguntas estáveis
+  evaluate_retrieval.py           avaliação de retrieval — offline, sem API
+  evaluate.py                     avaliação de geração — LLM-as-judge
+  validate_golden.py              checagem offline do golden dataset
+  compare_chunking.py             experimento naive vs. table-aware
+  build_retrieval_badge.py        badge a partir de retrieval_results.json
+  build_eval_badge.py             badge a partir de eval_results.json
+src/rag_financeiro/
+  config.py                       todas as variáveis de ambiente com default
+  ingestion/                      pdf_loader, chunking, pipeline
+  embeddings/local_embedder.py    bge-m3 local
+  vector_store/chroma_store.py    ChromaDB com upsert por hash
+  retrieval/                      retriever, bm25_index, fusion, reranker, synonyms
+  generation/                     rag_chain (LangGraph), llm_provider (fallback/timeout)
+  cache/                          builder, importer, matcher
+  evaluation/                     golden_dataset, judge, metrics
+  observability.py                tracing OpenTelemetry/Arize
+data/
+  raw/                            os 6 PDFs
+  processed/chroma_db/            índice vetorial (versionado)
+  processed/cache.json            71 pares do CAG
+  golden_dataset_reduzido.jsonl   26 perguntas de avaliação
+```
+
+---
 
 ## Setup
 
@@ -80,12 +236,39 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-Configure o `.env` (veja `config.py` para todas as variáveis): no mínimo `GROQ_API_KEY`.
+Configure o `.env`. O mínimo para o chat funcionar é `GROQ_API_KEY`.
+
+| Variável | Default | Para quê |
+| --- | --- | --- |
+| `LLM_PROVIDER` | `groq` | Provider de geração (`groq`, `gemini`, `openrouter`) |
+| `GROQ_API_KEY` | — | **Obrigatória** para o chat |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Modelo de geração |
+| `GROQ_REWRITE_MODEL` | `openai/gpt-oss-20b` | Modelo menor para reescrita de query |
+| `FALLBACK_PROVIDER` | `openrouter` | Provider acionado em erro de cota |
+| `OPENROUTER_API_KEY` | — | Necessária para o fallback e para o juiz |
+| `OPENROUTER_MODEL` | `inclusionai/ling-3.0-flash-fin:free` | Modelo do fallback de geração |
+| `OPENROUTER_MODEL_FALLBACKS` | 2 modelos free | Lista `models` do OpenRouter (máx. 3 no total) |
+| `JUDGE_PROVIDER` | `openrouter` | Provider do LLM-as-judge |
+| `OPENROUTER_JUDGE_MODEL` | `nex-agi/nex-n2.5-pro:free` | Modelo do juiz, pinado à parte do gerador |
+| `EMBEDDING_MODEL` | `BAAI/bge-m3` | Embeddings (local) |
+| `RERANKER_MODEL` | `BAAI/bge-reranker-base` | Cross-encoder do rerank (local) |
+| `CHUNK_SIZE` | `1000` | `max_tokens` do HybridChunker |
+| `CHUNK_OVERLAP` | `200` | Só usado pelo baseline naive do `compare_chunking.py` |
+| `TOP_K` | `8` | Chunks entregues ao LLM |
+| `DENSE_TOP_K` / `BM25_TOP_K` | `20` / `20` | Candidatos de cada perna da busca |
+| `RERANK_POOL_SIZE` | `10` | Pool que vai para o cross-encoder |
+| `RETRIEVAL_CONFIDENCE_THRESHOLD` | `0.1` | Abaixo disso, reescreve a query e tenta de novo |
+| `CACHE_SIMILARITY_THRESHOLD` | `0.85` | Limiar de hit no cache |
+| `LLM_MAX_TOKENS` | `700` | Teto da resposta |
+| `MAX_HISTORY_TURNS` | `4` | Turnos de histórico no condense |
+| `ARIZE_SPACE_ID` / `ARIZE_API_KEY` | — | Tracing opcional |
+
+---
 
 ## Como rodar
 
 ```bash
-# 1. Ingestão: parseia o PDF, gera chunks e popula o ChromaDB
+# 1. Ingestão: parseia os PDFs, gera chunks e popula o ChromaDB
 python scripts/ingest.py
 
 # 2. Interface de chat
@@ -99,109 +282,165 @@ python scripts/evaluate_retrieval.py
 python scripts/evaluate.py --limit 5
 ```
 
+---
+
 ## Avaliação
 
-`scripts/evaluate.py` roda cada pergunta de `data/golden_dataset_reduzido.jsonl` pelo pipeline
-completo e usa um LLM como juiz para comparar a resposta gerada com o `ground_truth`, numa escala
-de 1 a 5, com regras de calibração explícitas (ex.: uma recusa honesta quando a informação existe
-no documento é sempre nota 2 — falha de retrieval — nunca é "perdoada" por ser honesta). O
-resultado é salvo em `eval_results.json` com nota média, taxa de aprovação e acurácia de fonte.
+O sistema é avaliado contra `data/golden_dataset_reduzido.jsonl`: **26 perguntas** cobrindo os 6
+documentos, em quatro categorias — busca léxica (extrair número exato), raciocínio analítico (ler
+tabela e comparar), busca semântica (explicar conceito) e multidocumento (comparar duas publicações).
 
-O dataset tem 26 perguntas cobrindo os 6 documentos do corpus: REF de novembro de 2024, REF de maio
-de 2026, RPM de junho de 2026, as atas do Copom 279 e 280 e o Caderno de Educação Financeira. Como
-os dois REFs têm seções e gráficos de numeração parecida, as perguntas do REF de 2024 são ancoradas
-no texto ("No REF de novembro de 2024, ..."); sem isso a pergunta é genuinamente ambígua e não dá
-pra dizer se o retrieval errou. Uma pergunta é multidocumento (compara as duas atas do Copom) e o
-`expected_source` dela é uma lista — nesse caso o retrieval só conta como acerto se trouxer todos
-os documentos. O relatório quebra nota e acurácia de fonte **por documento** e **por categoria**,
-porque a média global esconde o modo de falha típico de corpus multi-documento: trazer o trecho
-certo do documento errado.
+Cada caso tem `question`, `ground_truth`, `categoria` e `expected_source`. No caso multidocumento o
+`expected_source` é uma **lista**, e o retrieval só conta como acerto se trouxer todos os documentos
+citados — trazer metade da comparação não é meio acerto.
 
-`python scripts/validate_golden.py` valida o dataset offline, sem nenhuma chamada de LLM: checa que
-todo `expected_source` existe no índice e que todo fato em `**negrito**` aparece literalmente no
-texto extraído daquele PDF. É o teto do key-fact recall — se o fato não está nem no documento
-inteiro, nenhum retrieval consegue trazê-lo e a nota baixa seria culpa do dataset, não do RAG.
-Rodar isso revelou que parte do key-fact recall antigo media artefato de dataset, não retrieval:
-alguns fatos em negrito eram paráfrases do PDF, outros eram números lidos a olho de gráficos que o
-docling extrai como imagem (esses perderam o negrito e agora ficam a cargo só do juiz), e tabelas
-extraídas viram texto do tipo `Fev 2024 = 31`, sem o `%`.
+### Duas avaliações separadas
 
-Rodando com `--limit N` a avaliação usa só os N primeiros casos e não sobrescreve
-`eval_results.json` — útil pra testar mudança no pipeline sem queimar quota de API à toa.
+O LLM-as-judge mede a geração, mas custa ~2 chamadas de API por pergunta e não cabe no free tier:
+com 26 perguntas, um único run estoura o limite diário de 50 requisições dos modelos `:free` do
+OpenRouter — a mesma chave usada pelo CI e pelo desenvolvimento local. Daí a divisão:
 
-O juiz (`JUDGE_PROVIDER`, padrão OpenRouter) é sempre um provider diferente do gerador (Groq) de
-propósito — um LLM avaliando a própria resposta (self-grading) tende a ser mais leniente consigo
-mesmo, o que inflaria a nota do badge. Como o OpenRouter também é o fallback da geração, o modelo
-do juiz é pinado à parte em `OPENROUTER_JUDGE_MODEL` em vez de herdar `OPENROUTER_MODEL`, pra
-garantir que juiz e gerador nunca sejam o mesmo modelo. Rodar localmente
-requer `OPENROUTER_API_KEY` no `.env`; no CI (GitHub Actions), requer o secret `OPENROUTER_API_KEY`
-configurado no repositório (Settings → Secrets and variables → Actions), junto do `GROQ_API_KEY`
-já existente.
-
-Como o golden dataset não tem página/chunk esperado anotado (só o `expected_source`, na granularidade
-de documento), a acurácia de retrieval também é medida por **key-fact recall**
-(`src/rag_financeiro/evaluation/metrics.py`): os trechos em `**negrito**` do `ground_truth` (os
-valores/fatos que a resposta precisa conter) são extraídos e verificados contra o texto dos chunks
-recuperados. É uma métrica aproximada — pode dar falso negativo se o PDF formata um número
-diferente do texto do ground truth — mas mede retrieval de verdade, sem precisar anotar o dataset
-nem gastar chamada de LLM extra.
-
-### Duas avaliações, dois badges
-
-O LLM-as-judge mede a geração, mas custa ~2 chamadas de API por pergunta (geração + juiz) e não
-cabe no free tier: com 26 perguntas, um único run estoura o limite diário de 50 requisições dos
-modelos `:free` do OpenRouter — que é a mesma chave usada pelo CI e pelo desenvolvimento local. Por
-isso o CI foi dividido em duas avaliações:
-
-| | `scripts/evaluate_retrieval.py` | `scripts/evaluate.py` |
-|---|---|---|
+| | `evaluate_retrieval.py` | `evaluate.py` |
+| --- | --- | --- |
 | mede | retrieval (busca + rerank) | geração (LLM-as-judge) |
 | chamadas de API | **nenhuma** | ~2 por pergunta |
 | roda | todo push no `main` | só no disparo manual, com `run_judge` marcado |
-| badge | `retrieval_badge.json` | `eval_badge.json` |
+| determinístico | sim | não |
 
-A avaliação de retrieval roda o pipeline de busca de cada pergunta do golden dataset e mede
-acurácia de fonte, key-fact recall e quantas perguntas caíram abaixo do limiar de confiança do
-reranker. É determinística e de graça, então pode rodar em todo commit sem queimar cota — e é
-justamente a métrica que o `compare_chunking.py` já usava.
+Separar as duas não é só economia de cota: é o que permite atribuir culpa. Nota baixa **com**
+key-fact recall alto é problema de geração; nota baixa **com** recall baixo é problema de busca. Foi
+exatamente assim que o bug do modelo de moderação apareceu.
 
-Ressalva: em produção, uma pergunta abaixo do limiar de confiança dispara reescrita da query (que
-usa LLM) e uma segunda tentativa de retrieval. O script offline mede só a primeira tentativa —
-caminho de 100% das perguntas e o único determinístico.
+### Resultado atual do retrieval
 
-Ambos publicam `retrieval_results.json` / `eval_results.json` como artifact do workflow, com o
-recorte por documento e por categoria.
+26 perguntas, sem nenhuma chamada de API:
 
-## Experimento: chunking naive vs. table-aware
+```
+Acurácia de fonte (documento certo recuperado):  100%
+Key-fact recall médio:                            94%
+Abaixo do limiar de confiança (0.1):             0/26
+Latência média do retrieval:                    4,24s
+```
 
-`scripts/compare_chunking.py` isola o chunking como única variável e compara duas estratégias
-usando `key_fact_recall` (sem chamar nenhum LLM — roda 100% local):
+Por categoria:
 
-- **naive**: extração de texto crua via `pypdf` + split por caracteres com overlap.
-- **docling**: `HybridChunker` table-aware, o que a produção usa (`scripts/ingest.py`).
+| Categoria | Casos | Fonte | Key-fact recall |
+| --- | ---: | ---: | ---: |
+| Busca Semântica | 8 | 100% | 100% |
+| Busca Léxica | 10 | 100% | 98% |
+| Raciocínio Analítico | 7 | 100% | 80% |
+| Multidocumento | 1 | 100% | 75% |
 
-A primeira tentativa comparou top-8 chunks de cada estratégia e deu vitória fácil pro naive (73%
-vs. 59%) — mas era um resultado enganoso: os chunks do Docling saem bem menores (~954 chars, corta
-em fronteira estrutural) que os do naive (~3948 chars, corta por tamanho fixo), então top-8 dava
-~4x mais texto bruto pro naive. Mais texto recuperado facilita achar um número solto no meio,
-independente de o retrieval ter sido preciso.
+Com seis documentos no índice — dois deles edições diferentes da mesma publicação — o retrieval
+**nunca trouxe o documento errado**. O que ainda falha é leitura de tabela e gráfico, e a pergunta
+multidocumento, onde `TOP_K=8` precisa acomodar trechos de dois PDFs ao mesmo tempo.
 
-Corrigindo para **orçamento de caracteres igual** (7.629 chars — o que `TOP_K=8` do Docling
-realmente entrega em produção hoje), o resultado inverte e se aproxima:
+### Como o key-fact recall funciona
+
+O golden dataset não tem página ou chunk anotado, só o documento esperado. Então a precisão do
+retrieval é medida por **key-fact recall** (`evaluation/metrics.py`): os trechos em `**negrito**` do
+`ground_truth` — os valores que a resposta precisa conter — são extraídos e procurados no texto dos
+chunks recuperados, após normalizar acento, caixa e espaço.
+
+É aproximado, e a aproximação tem nome: o docling extrai tabela como texto corrido do tipo
+`Riscos fiscais, ... Fev 2024 = 31`, sem o sinal de `%`, então o matcher tem um fallback para
+percentual solto.
+
+### `validate_golden.py` — o teto da métrica
+
+Roda offline e checa duas coisas: que todo `expected_source` existe no índice, e que todo fato em
+negrito aparece **literalmente no texto extraído daquele PDF**. Se o fato não está nem no documento
+inteiro, nenhum retrieval consegue trazê-lo — a nota baixa seria culpa do dataset, não do sistema.
+
+Isso não é teórico: rodar essa checagem pela primeira vez reprovou **5 dos 12 casos originais** e
+mostrou que boa parte do key-fact recall medido até então era artefato de dataset. Havia três
+problemas distintos:
+
+- fatos em negrito que eram **paráfrase** do PDF, não citação;
+- números **lidos a olho de gráficos** que o docling extrai como imagem — impossíveis de recuperar
+  por texto (perderam o negrito e ficaram a cargo só do juiz);
+- percentuais que a extração de tabela devolve **sem o `%`**.
+
+Depois da correção, os 26 casos passam. O key-fact recall saltou de 48% para 94% — parte disso é o
+corpus e o retrieval terem melhorado, parte é a métrica ter parado de medir o próprio dataset. Ela
+roda no CI antes da avaliação, então um golden dataset quebrado falha o build.
+
+### CI
+
+`.github/workflows/eval.yml`, a cada push no `main` que toque no pipeline: valida o dataset, roda a
+avaliação de retrieval, publica o badge e sobe os resultados como artifact — **sem consumir cota de
+API**. A avaliação com LLM-as-judge fica no disparo manual (Actions → Run workflow → `run_judge`),
+desmarcada por padrão.
+
+A avaliação de geração tolera falha de provider: um caso que estoura cota vira "sem nota" em vez de
+derrubar o run inteiro, a execução para após 3 erros seguidos, e o badge **não** é publicado a
+partir de execução parcial — um badge que mente é pior que um badge desatualizado.
+
+### Sobre o juiz
+
+O juiz (`JUDGE_PROVIDER`) é sempre um provider diferente do gerador, de propósito: um LLM avaliando
+a própria resposta tende a ser leniente consigo mesmo, o que inflaria a nota. Como o OpenRouter
+também é o fallback da geração, o modelo do juiz é pinado à parte em `OPENROUTER_JUDGE_MODEL` em vez
+de herdar `OPENROUTER_MODEL`, garantindo que juiz e gerador nunca sejam o mesmo modelo.
+
+A escala é 1 a 5 com regras de calibração explícitas — por exemplo, uma recusa honesta quando a
+informação **existe** no documento é sempre nota 2 (falha de retrieval), nunca "perdoada" por ser
+honesta.
+
+---
+
+## Experimentos e decisões
+
+### Chunking naive vs. table-aware
+
+`scripts/compare_chunking.py` isola o chunking como única variável, usando `key_fact_recall` e sem
+chamar nenhum LLM:
+
+- **naive**: extração crua via `pypdf` + split por caracteres com overlap.
+- **docling**: `HybridChunker` table-aware, o que a produção usa.
+
+A primeira tentativa comparou top-8 chunks de cada estratégia e deu vitória fácil para o naive
+(73% vs. 59%) — resultado enganoso. Os chunks do Docling saem bem menores (~954 chars, corte em
+fronteira estrutural) que os do naive (~3.948 chars, corte por tamanho fixo), então top-8 entregava
+~4x mais texto bruto para o naive. Mais texto recuperado facilita achar um número solto no meio,
+independentemente de o retrieval ter sido preciso.
+
+Corrigindo para **orçamento de caracteres igual** (7.629 chars — o que `TOP_K=8` do Docling entrega
+em produção), o resultado inverte:
 
 | Estratégia | Chunks/pergunta (mesmo orçamento) | Key-fact recall |
-|---|---|---|
+| --- | ---: | ---: |
 | naive | 1,0 | 44% |
 | docling (produção) | 3,1 | 46% |
 
-Com o mesmo espaço de contexto, o naive aposta tudo em 1 chunk gigante; o Docling encaixa ~3
-chunks menores e mais focados no mesmo espaço — mecanicamente é o comportamento esperado de
-chunking table-aware. Duas ressalvas honestas: a margem (2 p.p.) é pequena e a amostra é de só 12
-perguntas sobre 1 documento — os números da tabela são de antes do corpus crescer para 6
-documentos e do golden dataset ir para 26 perguntas; reexecutar o script hoje mede os 6. É sinal
-direcional, não prova estatística forte. E `key_fact_recall` só checa se o
-número aparece em algum lugar do texto recuperado, não se ele está coeso com o rótulo/tabela que
-dá contexto a ele — a vantagem real do table-aware chunking provavelmente é maior do que essa
-métrica consegue capturar.
+Com o mesmo espaço de contexto, o naive aposta tudo em 1 chunk gigante; o Docling encaixa ~3 chunks
+menores e mais focados. Duas ressalvas honestas: a margem (2 p.p.) é pequena, e os números são de
+quando o corpus tinha 1 documento e o dataset 12 perguntas — reexecutar hoje mede os 6. É sinal
+direcional, não prova estatística. E `key_fact_recall` só checa se o número aparece em algum lugar
+do texto recuperado, não se ele está coeso com o rótulo da tabela que lhe dá sentido — a vantagem
+real do chunking table-aware é provavelmente maior do que a métrica captura.
 
 Reproduzir: `python scripts/compare_chunking.py` (grava `chunking_comparison.json`).
+
+### Por que o badge do LLM-as-judge saiu do README
+
+Ele media a geração, mas só pode rodar manualmente por causa da cota — um badge que só atualiza de
+vez em quando passa a informar a data do último run, não a qualidade atual do sistema. O badge que
+ficou é o de retrieval: determinístico, sem custo, atualizado em todo commit. A avaliação de geração
+continua no repositório e continua sendo rodada; ela só não vira mais um selo no topo da página.
+
+---
+
+## Limitações conhecidas
+
+- **Gráficos são imagens.** Números que só existem em gráfico não são extraídos pelo docling e
+  portanto não são recuperáveis por texto. É a maior causa de erro na categoria "raciocínio
+  analítico" (80% de key-fact recall).
+- **Perguntas multidocumento competem por espaço.** Com `TOP_K=8`, uma comparação entre duas
+  publicações precisa acomodar trechos dos dois PDFs no mesmo orçamento de contexto.
+- **A avaliação offline mede a primeira tentativa.** Em produção, uma pergunta de baixa confiança
+  dispara reescrita de query (que usa LLM) e um segundo retrieval. O script determinístico mede só o
+  primeiro passe — caminho de 100% das perguntas, e o único reproduzível sem API.
+- **O free tier é o gargalo real do projeto.** Groq e OpenRouter têm limites diários que uma
+  avaliação completa estoura sozinha. Boa parte das decisões de arquitetura aqui (embeddings locais,
+  reranker local, cache, avaliação offline) existe para manter o custo marginal em zero.
