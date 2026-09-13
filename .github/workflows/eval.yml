@@ -2,11 +2,18 @@ name: RAG Eval
 
 on:
   workflow_dispatch:
+    inputs:
+      run_judge:
+        description: "Rodar também a avaliação LLM-as-judge (consome cota de API)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
       - "src/rag_financeiro/**"
       - "scripts/evaluate.py"
+      - "scripts/evaluate_retrieval.py"
+      - "scripts/validate_golden.py"
       - "scripts/ingest.py"
       - "data/golden_dataset_reduzido.jsonl"
       - "data/raw/**"
@@ -55,17 +62,35 @@ jobs:
       - name: Validate golden dataset
         run: python scripts/validate_golden.py
 
-      - name: Run evaluation
+      - name: Evaluate retrieval (offline)
+        run: python scripts/evaluate_retrieval.py
+
+      - name: Build retrieval badge
+        run: python scripts/build_retrieval_badge.py
+
+      - name: Run LLM-as-judge evaluation
+        if: github.event_name == 'workflow_dispatch' && inputs.run_judge
         run: python scripts/evaluate.py
 
-      - name: Build eval badge
+      - name: Build LLM-as-judge badge
+        if: github.event_name == 'workflow_dispatch' && inputs.run_judge
         run: python scripts/build_eval_badge.py
 
-      - name: Commit badge back to main
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            retrieval_results.json
+            eval_results.json
+          if-no-files-found: warn
+
+      - name: Commit badges back to main
         run: |
           git config user.name "Davi Andrade"
           git config user.email "141194513+DaviFLimaAndrade@users.noreply.github.com"
-          git add eval_badge.json
-          git diff --cached --quiet && echo "Sem mudança no badge, nada a commitar." && exit 0
-          git commit -m "chore: atualiza badge de avaliação do RAG [skip ci]"
+          git add retrieval_badge.json eval_badge.json
+          git diff --cached --quiet && echo "Sem mudança nos badges, nada a commitar." && exit 0
+          git commit -m "chore: atualiza badges de avaliação do RAG [skip ci]"
+          git pull --rebase
           git push

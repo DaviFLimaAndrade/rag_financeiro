@@ -1,5 +1,6 @@
 # Lastro — publicações do Banco Central (BCB)
 
+[![RAG Retrieval](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DaviFLimaAndrade/rag_financeiro/main/retrieval_badge.json)](.github/workflows/eval.yml)
 [![RAG Eval](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/DaviFLimaAndrade/rag_financeiro/main/eval_badge.json)](.github/workflows/eval.yml)
 
 Sistema de RAG (Retrieval-Augmented Generation) em português para consultar publicações do Banco
@@ -90,9 +91,12 @@ python scripts/ingest.py
 # 2. Interface de chat
 streamlit run app/streamlit_app.py
 
-# 3. Avaliação (LLM-as-judge contra o golden dataset)
-python scripts/validate_golden.py   # checagem offline do dataset, sem chamar LLM
-python scripts/evaluate.py
+# 3. Avaliação offline (sem nenhuma chamada de API)
+python scripts/validate_golden.py
+python scripts/evaluate_retrieval.py
+
+# 4. Avaliação da geração (LLM-as-judge; consome cota de API)
+python scripts/evaluate.py --limit 5
 ```
 
 ## Avaliação
@@ -142,10 +146,31 @@ recuperados. É uma métrica aproximada — pode dar falso negativo se o PDF for
 diferente do texto do ground truth — mas mede retrieval de verdade, sem precisar anotar o dataset
 nem gastar chamada de LLM extra.
 
-O badge no topo deste README reflete o resultado mais recente. Ele é atualizado automaticamente
-pelo workflow `.github/workflows/eval.yml` (GitHub Actions), que roda a avaliação (geração via
-Groq, julgamento via OpenRouter) a cada push no `main` que toque no pipeline do RAG, ou manualmente
-pela aba Actions ("Run workflow").
+### Duas avaliações, dois badges
+
+O LLM-as-judge mede a geração, mas custa ~2 chamadas de API por pergunta (geração + juiz) e não
+cabe no free tier: com 26 perguntas, um único run estoura o limite diário de 50 requisições dos
+modelos `:free` do OpenRouter — que é a mesma chave usada pelo CI e pelo desenvolvimento local. Por
+isso o CI foi dividido em duas avaliações:
+
+| | `scripts/evaluate_retrieval.py` | `scripts/evaluate.py` |
+|---|---|---|
+| mede | retrieval (busca + rerank) | geração (LLM-as-judge) |
+| chamadas de API | **nenhuma** | ~2 por pergunta |
+| roda | todo push no `main` | só no disparo manual, com `run_judge` marcado |
+| badge | `retrieval_badge.json` | `eval_badge.json` |
+
+A avaliação de retrieval roda o pipeline de busca de cada pergunta do golden dataset e mede
+acurácia de fonte, key-fact recall e quantas perguntas caíram abaixo do limiar de confiança do
+reranker. É determinística e de graça, então pode rodar em todo commit sem queimar cota — e é
+justamente a métrica que o `compare_chunking.py` já usava.
+
+Ressalva: em produção, uma pergunta abaixo do limiar de confiança dispara reescrita da query (que
+usa LLM) e uma segunda tentativa de retrieval. O script offline mede só a primeira tentativa —
+caminho de 100% das perguntas e o único determinístico.
+
+Ambos publicam `retrieval_results.json` / `eval_results.json` como artifact do workflow, com o
+recorte por documento e por categoria.
 
 ## Experimento: chunking naive vs. table-aware
 

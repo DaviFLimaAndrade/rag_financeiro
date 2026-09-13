@@ -1,16 +1,4 @@
-"""
-validate_golden.py
-
-Checagem offline (sem nenhuma chamada de LLM) do golden dataset:
-
-1. o `expected_source` de cada caso existe de fato no vector store;
-2. cada fato-chave em **negrito** do `ground_truth` aparece literalmente nos chunks
-   daquela fonte.
-
-É o teto do `key_fact_recall` medido em scripts/evaluate.py: se um fato não está
-nem no documento inteiro, nenhum retrieval consegue trazê-lo e a nota baixa seria
-culpa do dataset, não do RAG.
-"""
+"""Checagem offline do golden dataset, sem chamada de LLM."""
 
 import sys
 

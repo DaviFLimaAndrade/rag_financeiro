@@ -11,11 +11,6 @@ Métricas produzidas:
 - Taxa de aprovação (score >= 4)
 - Acurácia de retrieval (fonte esperada foi recuperada?)
 - Latência média
-
-O corpus tem 6 publicações do BCB, então o relatório também quebra os números por
-documento esperado: com vários PDFs no mesmo índice, uma nota baixa pode ser o
-retrieval trazendo o trecho certo do documento errado (ex.: REF de 2024 vs REF de
-2026), e a média global esconde isso.
 """
 
 import json
