@@ -3,9 +3,6 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from rag_financeiro import config
 
 REQUEST_TIMEOUT_SECONDS = 15
-# Modelos free-tier compartilhados (ex: openrouter/free) tendem a ser mais lentos e menos
-# previsíveis que o Groq — nesse ponto a alternativa a esperar mais é falhar de vez, então vale
-# dar mais tempo pro fallback antes de desistir.
 FALLBACK_TIMEOUT_SECONDS = 30
 OPENROUTER_MAX_MODELS = 3
 
@@ -79,7 +76,6 @@ def invoke_with_timeout(
     except LLMTimeoutError:
         raise
     except Exception as error:
-        # Cota/rate limit do free tier: tenta uma vez no provider de fallback antes de desistir.
         fallback = config.FALLBACK_PROVIDER
         if not fallback or fallback == provider or classify_error(error) != "quota":
             raise
