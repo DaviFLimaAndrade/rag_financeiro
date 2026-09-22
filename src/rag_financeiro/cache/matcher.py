@@ -1,4 +1,5 @@
 import json
+import random
 
 import numpy as np
 
@@ -31,6 +32,21 @@ def _load() -> tuple[list[dict], np.ndarray]:
 
 def warmup() -> None:
     _load()
+
+
+_questions: list[str] | None = None
+
+
+def sample_questions(n: int = 3) -> list[str]:
+    """Sugestões para rotas que não chamam o LLM. Lê o cache sem embedar nada."""
+    global _questions
+    if _questions is None:
+        if not config.CACHE_PATH.exists():
+            _questions = []
+        else:
+            payload = json.loads(config.CACHE_PATH.read_text(encoding="utf-8"))
+            _questions = [e["question"] for e in payload.get("entries", [])]
+    return random.sample(_questions, min(n, len(_questions)))
 
 
 def lookup(question: str) -> dict | None:

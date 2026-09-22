@@ -103,6 +103,7 @@ graphify-out/
 # eval output (eval_badge.json is committed by CI, eval_results.json is not)
 eval_results.json
 retrieval_results.json
+routing_results.json
 chunking_comparison.json
 
 # Índice vetorial e cache pré-construídos: commitados de propósito, pra deploy

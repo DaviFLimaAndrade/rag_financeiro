@@ -11,6 +11,7 @@ sentence-transformers
 rank_bm25
 chromadb
 python-dotenv
+requests
 streamlit
 arize-otel
 openinference-instrumentation-langchain

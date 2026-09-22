@@ -54,6 +54,17 @@ RERANKER_MODEL = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-base")
 
 RETRIEVAL_CONFIDENCE_THRESHOLD = float(os.getenv("RETRIEVAL_CONFIDENCE_THRESHOLD", 0.1))
 
+ROUTER_PROVIDER = os.getenv("ROUTER_PROVIDER", "atual")
+ROUTER_CONFIDENCE_THRESHOLD = float(os.getenv("ROUTER_CONFIDENCE_THRESHOLD", 0.7))
+ROUTER_TIMEOUT_SECONDS = float(os.getenv("ROUTER_TIMEOUT_SECONDS", 5))
+
+TYPESAFE_API_KEY = os.getenv("TYPESAFE_API_KEY", "")
+TYPESAFE_BASE_URL = os.getenv("TYPESAFE_BASE_URL", "https://api.typesafe.ai")
+JEV_MODEL = os.getenv("JEV_MODEL", "jev-latest")
+JEV_INPUT_PRICE_PER_MILLION = float(os.getenv("JEV_INPUT_PRICE_PER_MILLION", 0.042))
+
+ROUTING_DATASET_PATH = BASE_DIR / "data" / "routing_dataset.jsonl"
+
 CACHE_PATH = BASE_DIR / "data" / "processed" / "cache.json"
 CACHE_SIMILARITY_THRESHOLD = float(os.getenv("CACHE_SIMILARITY_THRESHOLD", 0.85))
 CACHE_BUILD_BATCH_SIZE = int(os.getenv("CACHE_BUILD_BATCH_SIZE", 8))

@@ -6,10 +6,23 @@ from langgraph.graph import END, START, StateGraph
 
 from rag_financeiro import config
 from rag_financeiro.cache import matcher as cache_matcher
+from rag_financeiro.observability import tracer
 from rag_financeiro.retrieval.retriever import retrieve
+from rag_financeiro.routing import DOCUMENTOS, FORA_DE_ESCOPO, SAUDACAO, apply_confidence_floor, get_router
 from rag_financeiro.generation.llm_provider import extract_text, invoke_with_timeout
 
 NO_CONTEXT_ANSWER = "Não encontrei essa informação nos documentos do Banco Central que consulto."
+
+SAUDACAO_ANSWER = (
+    "Olá! Eu respondo perguntas sobre as publicações do Banco Central do Brasil — relatórios de "
+    "estabilidade financeira e de política monetária, atas do Copom e o caderno de educação "
+    "financeira. O que você quer saber?"
+)
+
+FORA_DE_ESCOPO_ANSWER = (
+    "Só consigo ajudar com perguntas sobre as publicações do Banco Central do Brasil. Posso "
+    "buscar dados de juros, inflação, crédito e estabilidade financeira nesses documentos."
+)
 
 FOLLOWUP_MARKER = "PRÓXIMAS:"
 
@@ -81,6 +94,8 @@ class RAGState(TypedDict):
     top_rerank_score: float | None
     retried: bool
     cache_hit: dict | None
+    route: str
+    route_confidence: float
     answer: str
     answer_provider: str | None
     followups: list[str]
@@ -158,6 +173,42 @@ def _condense_query_node(state: RAGState) -> dict:
     )
     standalone = extract_text(response.content).strip()
     return {"question": standalone or state["question"]}
+
+
+def _route_intent_node(state: RAGState) -> dict:
+    if config.ROUTER_PROVIDER in ("atual", "none", ""):
+        return {"route": DOCUMENTOS, "route_confidence": 1.0}
+
+    with tracer.start_as_current_span("route_intent") as span:
+        try:
+            decision = apply_confidence_floor(
+                get_router(config.ROUTER_PROVIDER).decide(state["question"]),
+                config.ROUTER_CONFIDENCE_THRESHOLD,
+            )
+        except Exception:
+            return {"route": DOCUMENTOS, "route_confidence": 0.0}
+
+        span.set_attribute("router.provider", config.ROUTER_PROVIDER)
+        span.set_attribute("router.route", decision.route)
+        span.set_attribute("router.confidence", decision.confidence)
+        span.set_attribute("router.fallback_applied", decision.fallback_applied)
+        return {"route": decision.route, "route_confidence": decision.confidence}
+
+
+def _route_after_intent(state: RAGState) -> str:
+    if state["route"] == SAUDACAO:
+        return "answer_saudacao"
+    if state["route"] == FORA_DE_ESCOPO:
+        return "answer_fora_de_escopo"
+    return "cache_lookup"
+
+
+def _answer_saudacao_node(state: RAGState) -> dict:
+    return {"answer": SAUDACAO_ANSWER, "followups": cache_matcher.sample_questions()}
+
+
+def _answer_fora_de_escopo_node(state: RAGState) -> dict:
+    return {"answer": FORA_DE_ESCOPO_ANSWER, "followups": cache_matcher.sample_questions()}
 
 
 def _cache_lookup_node(state: RAGState) -> dict:
@@ -253,6 +304,9 @@ def _get_graph():
     if _graph is None:
         builder = StateGraph(RAGState)
         builder.add_node("condense_query", _condense_query_node)
+        builder.add_node("route_intent", _route_intent_node)
+        builder.add_node("answer_saudacao", _answer_saudacao_node)
+        builder.add_node("answer_fora_de_escopo", _answer_fora_de_escopo_node)
         builder.add_node("cache_lookup", _cache_lookup_node)
         builder.add_node("generate_from_cache", _generate_from_cache_node)
         builder.add_node("retrieve", _retrieve_node)
@@ -260,7 +314,16 @@ def _get_graph():
         builder.add_node("generate", _generate_node)
 
         builder.add_edge(START, "condense_query")
-        builder.add_edge("condense_query", "cache_lookup")
+        builder.add_edge("condense_query", "route_intent")
+        builder.add_conditional_edges(
+            "route_intent",
+            _route_after_intent,
+            {
+                "answer_saudacao": "answer_saudacao",
+                "answer_fora_de_escopo": "answer_fora_de_escopo",
+                "cache_lookup": "cache_lookup",
+            },
+        )
         builder.add_conditional_edges(
             "cache_lookup",
             _route_after_cache_lookup,
@@ -272,6 +335,8 @@ def _get_graph():
             {"rewrite": "rewrite_query", "generate": "generate"},
         )
         builder.add_edge("rewrite_query", "retrieve")
+        builder.add_edge("answer_saudacao", END)
+        builder.add_edge("answer_fora_de_escopo", END)
         builder.add_edge("generate_from_cache", END)
         builder.add_edge("generate", END)
 
@@ -296,6 +361,8 @@ def answer_question(
         "top_rerank_score": None,
         "retried": False,
         "cache_hit": None,
+        "route": DOCUMENTOS,
+        "route_confidence": 1.0,
         "answer": "",
         "answer_provider": None,
         "followups": [],
@@ -305,5 +372,6 @@ def answer_question(
         "answer": final_state["answer"],
         "sources": final_state["chunks"],
         "followups": final_state["followups"],
+        "route": final_state["route"],
         "provider_used": final_state["answer_provider"] or provider or config.LLM_PROVIDER,
     }
