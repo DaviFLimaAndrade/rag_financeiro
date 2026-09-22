@@ -120,7 +120,8 @@ def _calibration(results: list[RoutingResult]) -> list[dict]:
 
 def summarize(name: str, results: list[RoutingResult], retrieval_seconds: float | None) -> dict:
     total = len(results)
-    accuracy = sum(1 for r in results if r.correct) / total if total else 0.0
+    validos = [r for r in results if not r.error]
+    accuracy = sum(1 for r in validos if r.correct) / len(validos) if validos else None
     latencies = [r.latency_ms for r in results]
 
     desviadas = [r for r in results if r.predicted != DOCUMENTOS]
@@ -140,18 +141,19 @@ def summarize(name: str, results: list[RoutingResult], retrieval_seconds: float 
     return {
         "router": name,
         "casos": total,
-        "acuracia": round(accuracy, 3),
-        "por_classe": _per_class(results),
+        "casos_validos": len(validos),
+        "acuracia": round(accuracy, 3) if accuracy is not None else None,
+        "por_classe": _per_class(validos),
         "confusao": {
             expected: {
                 predicted: sum(
-                    1 for r in results if r.expected == expected and r.predicted == predicted
+                    1 for r in validos if r.expected == expected and r.predicted == predicted
                 )
                 for predicted in ROUTES
             }
             for expected in ROUTES
         },
-        "calibracao": _calibration(results),
+        "calibracao": _calibration(validos),
         "latencia_ms": {
             "media": round(sum(latencies) / total, 1) if total else 0.0,
             "p50": round(_percentile(latencies, 50), 1),
@@ -185,7 +187,8 @@ def print_report(summaries: list[dict], retrieval_seconds: float | None):
           f"{'pipeline evitado':>17} {'recusas indevidas':>18}")
     print("-" * 78)
     for s in summaries:
-        print(f"{s['router']:<12} {s['acuracia']*100:>8.1f}% {s['latencia_ms']['p50']:>8.1f} "
+        acuracia = f"{s['acuracia']*100:.1f}%" if s["acuracia"] is not None else "sem nota"
+        print(f"{s['router']:<12} {acuracia:>9} {s['latencia_ms']['p50']:>8.1f} "
               f"{s['latencia_ms']['p95']:>8.1f} {s['desvios']['pct_pipeline_evitado']*100:>16.1f}% "
               f"{s['recusas_indevidas']:>18}")
 
@@ -202,7 +205,10 @@ def print_report(summaries: list[dict], retrieval_seconds: float | None):
         if s["fallbacks_por_baixa_confianca"]:
             print(f"  fallback por baixa confiança: {s['fallbacks_por_baixa_confianca']}")
         if s["erros_de_provedor"]:
-            print(f"  erros de provedor: {s['erros_de_provedor']}")
+            print(f"  erros de provedor: {s['erros_de_provedor']}/{s['casos']} "
+                  f"(casos com nota: {s['casos_validos']})")
+            print("  ATENÇÃO: decisão com erro cai na rota segura e não conta para a acurácia — "
+                  "run parcial não vira número publicável.")
         if s["custo_usd_por_mil_decisoes"] is not None:
             print(f"  custo: US$ {s['custo_usd_por_mil_decisoes']:.6f} por mil decisões")
         if s["desvios"]["segundos_de_retrieval_poupados"] is not None:
